@@ -21,11 +21,11 @@ const canEdit = computed(() => !!auth.state.person?.is_admin)
 const BASE_NAV_ITEMS = [
   { key: 'board', label: 'Quadro de Tarefas', icon: 'fi-sr-table-list' },
   { key: 'dashboard', label: 'Dashboard', icon: 'fi-sr-chart-simple' },
-  { key: 'history', label: 'Histórico', icon: 'fi-sr-clock' },
 ]
-const navItems = computed(() =>
-  canEdit.value ? [...BASE_NAV_ITEMS, { key: 'team', label: 'Equipe', icon: 'fi-sr-users' }] : BASE_NAV_ITEMS
-)
+const navItems = computed(() => {
+  const items = auth.isLoggedIn ? [...BASE_NAV_ITEMS, { key: 'history', label: 'Histórico', icon: 'fi-sr-clock' }] : BASE_NAV_ITEMS
+  return canEdit.value ? [...items, { key: 'team', label: 'Equipe', icon: 'fi-sr-users' }] : items
+})
 const activeNav = computed(() => route.meta.nav || 'board')
 
 function goNav(key) {

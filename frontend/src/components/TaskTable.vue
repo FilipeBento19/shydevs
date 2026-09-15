@@ -29,6 +29,7 @@ function canSelect(task) {
   return props.canEdit || task.assignee === auth.state.person?.id
 }
 function openTask(task) {
+  if (!auth.isLoggedIn) return
   router.push({ name: 'task', params: { id: task.id } })
 }
 </script>
@@ -38,8 +39,8 @@ function openTask(task) {
     <div class="nice-scroll" style="overflow-x:auto;">
       <div style="min-width:940px;">
         <div style="display:grid; grid-template-columns:34px minmax(0,1fr) 128px 158px 150px 96px 126px; gap:10px; padding:11px 14px; background:#101017; border-bottom:1px solid #1f1f2b; font-size:10.5px; font-weight:700; letter-spacing:.06em; color:#8b899f;">
-          <div v-if="auth.isLoggedIn">
-            <Checkbox :model-value="allSelected" @update:model-value="$emit('toggle-select-all')" aria-label="Selecionar todas as tarefas" />
+          <div>
+            <Checkbox :model-value="allSelected" :disabled="!auth.isLoggedIn || !tasks.some(canSelect)" @update:model-value="$emit('toggle-select-all')" aria-label="Selecionar todas as tarefas" />
           </div>
           <div>TAREFA &amp; DESCRIÇÃO</div><div>CARGO</div><div>RESPONSÁVEL</div><div>PRAZO</div><div>PRIORIDADE</div><div>STATUS</div>
         </div>
@@ -52,11 +53,12 @@ function openTask(task) {
 
         <TransitionGroup v-else tag="div" @enter="listEnter" @leave="listLeave" :css="false">
           <div v-for="(t, i) in tasks" :key="t.id" :data-index="i" @click="openTask(t)"
-            role="button" tabindex="0" :aria-label="`Abrir tarefa ${t.code}: ${t.title}`"
+            :role="auth.isLoggedIn ? 'button' : undefined" :tabindex="auth.isLoggedIn ? 0 : undefined"
+            :aria-label="auth.isLoggedIn ? `Abrir tarefa ${t.code}: ${t.title}` : `Tarefa ${t.code}: ${t.title} (entre para ver os detalhes)`"
             @keydown.enter="openTask(t)" @keydown.space.prevent="openTask(t)"
-            :style="{ display: 'grid', gridTemplateColumns: '34px minmax(0,1fr) 128px 158px 150px 96px 126px', gap: '10px', padding: '13px 14px', borderBottom: '1px solid #1a1a25', alignItems: 'center', cursor: 'pointer', background: isSelected(t.id) ? 'rgba(124,111,255,.06)' : 'transparent' }">
-            <div v-if="auth.isLoggedIn" @click.stop>
-              <Checkbox :model-value="isSelected(t.id)" :disabled="!canSelect(t)" @update:model-value="$emit('toggle-select', t.id)"
+            :style="{ display: 'grid', gridTemplateColumns: '34px minmax(0,1fr) 128px 158px 150px 96px 126px', gap: '10px', padding: '13px 14px', borderBottom: '1px solid #1a1a25', alignItems: 'center', cursor: auth.isLoggedIn ? 'pointer' : 'default', background: isSelected(t.id) ? 'rgba(124,111,255,.06)' : 'transparent' }">
+            <div @click.stop>
+              <Checkbox :model-value="isSelected(t.id)" :disabled="!auth.isLoggedIn || !canSelect(t)" @update:model-value="$emit('toggle-select', t.id)"
                 :aria-label="canSelect(t) ? `Selecionar tarefa ${t.code}` : `Tarefa ${t.code} não é sua`" />
             </div>
             <div style="min-width:0;">

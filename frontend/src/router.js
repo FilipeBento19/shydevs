@@ -24,7 +24,7 @@ const routes = [
     path: '/history',
     name: 'history',
     component: HistoryView,
-    meta: { nav: 'history', title: 'Histórico de Atividades', subtitle: 'Tudo que aconteceu nas tarefas do projeto.' },
+    meta: { nav: 'history', title: 'Histórico de Atividades', subtitle: 'Tudo que aconteceu nas tarefas do projeto.', requiresAuth: true },
   },
   {
     path: '/team',
@@ -43,7 +43,7 @@ const routes = [
     name: 'task',
     component: TaskPage,
     props: true,
-    meta: { nav: null, title: 'Detalhes da Tarefa' },
+    meta: { nav: null, title: 'Detalhes da Tarefa', requiresAuth: true },
   },
 ]
 
@@ -57,6 +57,9 @@ export const router = createRouter({
 
 router.beforeEach((to) => {
   if (to.meta.adminOnly && !auth.state.person?.is_admin) {
+    return { name: 'board' }
+  }
+  if (to.meta.requiresAuth && !auth.state.person) {
     return { name: 'board' }
   }
 })

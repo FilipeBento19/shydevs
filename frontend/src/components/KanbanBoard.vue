@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { auth } from '../auth'
 import { isLate, formatDue, prioBadge, roleIcon } from '../utils'
 import { cardEnter, cardLeave } from '../motion'
 import AssigneeAvatar from './AssigneeAvatar.vue'
@@ -14,6 +15,7 @@ const emit = defineEmits(['status-change'])
 
 const router = useRouter()
 function openTask(task) {
+  if (!auth.isLoggedIn) return
   router.push({ name: 'task', params: { id: task.id } })
 }
 
@@ -70,9 +72,10 @@ function onDropCol(status) {
           :draggable="canEdit"
           @dragstart="onDragStart(t)"
           @click="openTask(t)"
-          role="button" tabindex="0" :aria-label="`Abrir tarefa ${t.code}: ${t.title}, status ${t.status}`"
+          :role="auth.isLoggedIn ? 'button' : undefined" :tabindex="auth.isLoggedIn ? 0 : undefined"
+          :aria-label="auth.isLoggedIn ? `Abrir tarefa ${t.code}: ${t.title}, status ${t.status}` : `Tarefa ${t.code}: ${t.title}, status ${t.status} (entre para ver os detalhes)`"
           @keydown.enter="openTask(t)" @keydown.space.prevent="openTask(t)"
-          :style="{ background: '#0e0e14', border: '1px solid #22222f', borderRadius: '10px', padding: '10px', cursor: canEdit ? 'grab' : 'pointer' }">
+          :style="{ background: '#0e0e14', border: '1px solid #22222f', borderRadius: '10px', padding: '10px', cursor: canEdit ? 'grab' : (auth.isLoggedIn ? 'pointer' : 'default') }">
           <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
             <span style="font-family:'JetBrains Mono', monospace; font-size:10px; color:#8f8da8;">{{ t.code }}</span>
             <span :style="{ marginLeft: 'auto', ...prioBadge(t.priority), padding: '2px 6px', fontSize: '10px' }">{{ t.priority }}</span>
