@@ -16,7 +16,7 @@ const heroSubtitle = computed(() => {
   }
   return route.meta.subtitle || ''
 })
-const showHero = computed(() => route.name !== 'task' && route.name !== 'new-task')
+const showHero = computed(() => !['task', 'new-task', 'home'].includes(route.name))
 
 const headerBarEl = ref(null)
 const heroTitleEl = ref(null)
@@ -86,13 +86,15 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <div style="min-height:100vh; padding:18px; box-sizing:border-box; display:flex; justify-content:center;">
-    <div style="width:100%; max-width:1180px; background:#101017; border:1px solid #22222f; border-radius:14px; overflow:hidden; box-shadow:0 18px 50px rgba(0,0,0,.55);">
+  <div style="min-height:100vh;">
 
-      <div ref="headerBarEl">
+    <div ref="headerBarEl" style="position:sticky; top:0; z-index:40; background:#0b0b11;">
+      <div style="max-width:1180px; margin:0 auto;">
         <AppHeader />
       </div>
+    </div>
 
+    <div style="max-width:1180px; margin:0 auto;">
       <div v-if="showHero" style="padding:22px 26px 0;">
         <div style="display:flex; align-items:center; gap:8px; font-size:11.5px; font-weight:600; color:#8b899f; margin-bottom:9px;">
           <span style="width:6px; height:6px; border-radius:50%; background:#7c6fff;"></span>ShyDevs · Sprint 24.4
@@ -107,8 +109,8 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
       </div>
 
       <router-view />
-
     </div>
+
   </div>
 
   <TransitionGroup tag="div" @enter="toastEnter" @leave="toastLeave" :css="false" style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:80; display:flex; flex-direction:column; gap:8px; align-items:center;">

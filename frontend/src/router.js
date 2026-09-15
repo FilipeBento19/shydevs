@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import HomePage from './views/HomePage.vue'
 import BoardPage from './views/BoardPage.vue'
 import TaskPage from './views/TaskPage.vue'
 import NewTaskPage from './views/NewTaskPage.vue'
@@ -10,6 +11,12 @@ import { auth } from './auth'
 const routes = [
   {
     path: '/',
+    name: 'home',
+    component: HomePage,
+    meta: { nav: 'home', title: 'ShyDevs' },
+  },
+  {
+    path: '/board',
     name: 'board',
     component: BoardPage,
     meta: { nav: 'board', title: 'Atribuição de Tarefas' },
