@@ -1,257 +1,724 @@
 <script setup>
-import { nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { auth } from '../auth'
 import { gsap, reduceMotion } from '../motion'
-import { mascot } from '../mascotFace'
 
 const router = useRouter()
+const isAdmin = computed(() => !!auth.state.person?.is_admin)
+const firstName = computed(() => auth.state.person?.name?.split(' ')[0] || '')
 
 function go(name) {
   router.push({ name })
 }
 
-// ---- shortcuts ----
-const SHORTCUTS = [
-  { name: 'board', icon: 'fi-sr-table-list', color: '#b3aaff', bg: 'rgba(124,111,255,.16)', title: 'Quadro de Tarefas', desc: 'Todas as demandas, filtros por cargo e status.' },
-  { name: 'dashboard', icon: 'fi-sr-chart-simple', color: '#b3aaff', bg: 'rgba(124,111,255,.16)', title: 'Dashboard', desc: 'Status, prioridade, cargo e carga por pessoa.' },
-  { name: 'history', icon: 'fi-sr-clock', color: '#b3aaff', bg: 'rgba(124,111,255,.16)', title: 'Histórico', desc: 'Log de tudo que mudou nas tarefas. Precisa estar logado.' },
-  { name: 'new-task', icon: 'fi-sr-plus-small', color: '#0a0a10', bg: '#7c6fff', title: 'Atribuir Tarefa', desc: 'Criar e delegar uma demanda. Só admin.', highlight: true },
-  { name: 'board', icon: 'fi-sr-user', color: '#6fe3a4', bg: 'rgba(63,207,142,.16)', title: 'Minhas tarefas', desc: 'Chip no quadro que filtra só o que é seu.' },
+const SCENES = [
+  {
+    title: 'Descreva a demanda',
+    text: 'Dê um título claro, escreva o que precisa ser entregue e defina o prazo.',
+    icon: 'fi-sr-list-check',
+  },
+  {
+    title: 'Escolha cargo e responsável',
+    text: 'O cargo filtra as pessoas certas e a carga atual ajuda você a distribuir melhor.',
+    icon: 'fi-sr-user-add',
+  },
+  {
+    title: 'Acompanhe no quadro',
+    text: 'A tarefa nasce como pendente e avança pelo fluxo até a conclusão.',
+    icon: 'fi-sr-table-list',
+  },
+  {
+    title: 'Decida com o dashboard',
+    text: 'Veja atrasos, prioridades e sobrecarga antes de atribuir a próxima demanda.',
+    icon: 'fi-sr-chart-simple',
+  },
 ]
 
-// ---- interactive tab preview ----
-const TABS = [
-  { key: 'board', label: 'Quadro', icon: 'fi-sr-table-list' },
-  { key: 'dashboard', label: 'Dashboard', icon: 'fi-sr-chart-simple' },
-  { key: 'history', label: 'Histórico', icon: 'fi-sr-clock' },
-  { key: 'team', label: 'Equipe', icon: 'fi-sr-users' },
+const ADMIN_STEPS = [
+  {
+    number: '01',
+    route: 'team',
+    icon: 'fi-sr-users',
+    title: 'Monte a equipe',
+    text: 'Cadastre pessoas, seus cargos e senhas. Isso define quem pode receber cada tipo de tarefa.',
+    action: 'Gerenciar equipe',
+  },
+  {
+    number: '02',
+    route: 'new-task',
+    icon: 'fi-sr-plus',
+    title: 'Crie uma demanda',
+    text: 'Informe escopo, cargo, responsável, prazo e prioridade. O atalho N abre essa tela.',
+    action: 'Atribuir tarefa',
+    featured: true,
+  },
+  {
+    number: '03',
+    route: 'board',
+    icon: 'fi-sr-table-list',
+    title: 'Acompanhe o fluxo',
+    text: 'Use tabela para uma visão completa ou cards para mover tarefas entre os status.',
+    action: 'Abrir o quadro',
+  },
+  {
+    number: '04',
+    route: 'dashboard',
+    icon: 'fi-sr-chart-simple',
+    title: 'Cuide da capacidade',
+    text: 'Confira atrasos, prioridades e carga por pessoa antes de distribuir mais trabalho.',
+    action: 'Ver indicadores',
+  },
 ]
-const activeTab = ref('board')
 
-// ---- how-to steps ----
-const STEPS = [
-  { n: 1, title: 'Clique em Atribuir Tarefa', desc: 'Botão roxo no canto direito do topo, em qualquer aba. Atalho de teclado: N' },
-  { n: 2, title: 'Título e descrição', desc: 'Título é obrigatório. Na descrição vai o escopo: referências, limite de polycount, o que conta como pronto.' },
-  { n: 3, title: 'Escolha o cargo', desc: 'O cargo filtra quem pode receber a tarefa — só aparece quem tem esse cargo (ou um deles, se a pessoa tiver mais de um).' },
-  { n: 4, title: 'Selecione o responsável', desc: 'A lista mostra quantas tarefas abertas cada pessoa já tem — use isso para não sobrecarregar ninguém.' },
-  { n: 5, title: 'Prazo e prioridade', desc: 'Atalhos Hoje / Amanhã / Próxima semana. Prioridade Baixa, Média ou Alta. Passou do prazo, a tarefa vira Atrasada.' },
-  { n: 6, title: 'Confirme', desc: 'A tarefa nasce como Pendente e já aparece no quadro para todo mundo. O histórico registra quem atribuiu.', highlight: true },
-]
-
-// ---- entrance ----
+const activeScene = ref(0)
+const playing = ref(!reduceMotion)
 const heroEl = ref(null)
-const shortcutsEl = ref(null)
+const stepsEl = ref(null)
+let sceneTimer = null
+
+function clearSceneTimer() {
+  if (sceneTimer) window.clearTimeout(sceneTimer)
+  sceneTimer = null
+}
+
+function scheduleScene() {
+  clearSceneTimer()
+  if (!playing.value) return
+  sceneTimer = window.setTimeout(() => {
+    if (activeScene.value >= SCENES.length - 1) {
+      playing.value = false
+      return
+    }
+    activeScene.value += 1
+    scheduleScene()
+  }, 4200)
+}
+
+function selectScene(index) {
+  activeScene.value = index
+  scheduleScene()
+}
+
+function togglePlayback() {
+  if (playing.value) {
+    playing.value = false
+    clearSceneTimer()
+    return
+  }
+  if (activeScene.value >= SCENES.length - 1) activeScene.value = 0
+  playing.value = true
+  scheduleScene()
+}
+
+function replay() {
+  activeScene.value = 0
+  playing.value = !reduceMotion
+  scheduleScene()
+}
+
+function sceneEnter(el, done) {
+  if (reduceMotion) return done()
+  gsap.fromTo(
+    el,
+    { autoAlpha: 0, transform: 'translateY(8px) scale(0.98)' },
+    { autoAlpha: 1, transform: 'translateY(0px) scale(1)', duration: 0.45, ease: 'power3.out', onComplete: done }
+  )
+}
+
+function sceneLeave(el, done) {
+  if (reduceMotion) return done()
+  gsap.to(el, { autoAlpha: 0, transform: 'translateY(-5px) scale(0.99)', duration: 0.2, ease: 'power2.out', onComplete: done })
+}
+
 onMounted(async () => {
+  scheduleScene()
   await nextTick()
   if (reduceMotion) return
-  gsap.from(heroEl.value, { y: 16, autoAlpha: 0, duration: 0.5, ease: 'power3.out', clearProps: 'transform' })
-  const cards = shortcutsEl.value?.querySelectorAll('.shortcut-card')
+  gsap.fromTo(heroEl.value, { y: 16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.55, ease: 'power3.out', clearProps: 'transform,opacity,visibility' })
+  const cards = stepsEl.value?.querySelectorAll('.admin-step')
   if (cards?.length) {
-    gsap.from(cards, { y: 12, autoAlpha: 0, duration: 0.4, stagger: 0.05, ease: 'power2.out', delay: 0.15, clearProps: 'transform' })
+    gsap.fromTo(cards, { y: 12, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.42, stagger: 0.06, ease: 'power2.out', delay: 0.2, clearProps: 'transform,opacity,visibility' })
   }
 })
+
+onUnmounted(clearSceneTimer)
 </script>
 
 <template>
-  <div style="padding:28px 26px 60px; display:flex; flex-direction:column; gap:40px;">
+  <main class="home-page">
+    <section ref="heroEl" class="home-hero">
+      <div class="hero-copy">
+        <span class="eyebrow">
+          <i class="fi fi-sr-sparkles" aria-hidden="true"></i>
+          {{ isAdmin ? 'Central do administrador' : 'Central do projeto' }}
+        </span>
+        <h1>
+          {{ isAdmin && firstName ? `${firstName}, organize o time` : 'Organize o time' }}
+          <span>sem deixar ninguém no escuro.</span>
+        </h1>
+        <p>
+          Transforme cada demanda do jogo em um fluxo claro: defina o trabalho, escolha quem faz,
+          acompanhe o prazo e enxergue onde o time precisa de atenção.
+        </p>
 
-    <!-- hero -->
-    <div ref="heroEl" style="display:flex; align-items:flex-start; gap:24px; flex-wrap:wrap;">
-      <div style="flex:1; min-width:320px;">
-        <div style="display:flex; align-items:center; gap:8px; font-size:11.5px; font-weight:600; color:#8b899f; margin-bottom:12px;">
-          <span style="width:6px; height:6px; border-radius:50%; background:#7c6fff;" aria-hidden="true"></span>ShyDevs · Studio de jogos Roblox
+        <div class="hero-actions">
+          <button v-if="isAdmin" class="primary-button" type="button" @click="go('new-task')">
+            <i class="fi fi-sr-plus" aria-hidden="true"></i>Atribuir uma tarefa
+          </button>
+          <button v-else class="primary-button" type="button" @click="go('board')">
+            <i class="fi fi-sr-table-list" aria-hidden="true"></i>Abrir o quadro
+          </button>
+          <button class="secondary-button" type="button" @click="go('dashboard')">
+            Ver dashboard<i class="fi fi-sr-arrow-right" aria-hidden="true"></i>
+          </button>
         </div>
-        <h1 style="margin:0 0 10px; font-size:38px; line-height:1.08; font-weight:800; color:#f5f4fb; letter-spacing:-.03em; text-wrap:balance;">O quadro onde a studio combina o que vai ser feito.</h1>
-        <p style="margin:0 0 20px; font-size:14px; line-height:1.6; color:#9a97b8; max-width:560px;">Cada demanda do jogo vira uma tarefa com cargo, responsável, prazo e prioridade. Esta página é o atalho para tudo: o quadro, os números do time e o passo a passo de como atribuir uma tarefa.</p>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button type="button" @click="go('board')" style="display:inline-flex; align-items:center; gap:8px; background:#7c6fff; color:#0a0a10; border:none; border-radius:10px; padding:12px 18px; font-size:13px; font-weight:700; cursor:pointer;">
-            <i class="fi fi-sr-table-list" aria-hidden="true"></i>Abrir o Quadro de Tarefas
-          </button>
-          <button type="button" @click="go('dashboard')" style="display:inline-flex; align-items:center; gap:8px; border:1px solid #26263a; background:#14141d; color:#c7c5dc; border-radius:10px; padding:12px 18px; font-size:13px; font-weight:700; cursor:pointer;">
-            <i class="fi fi-sr-chart-simple" aria-hidden="true"></i>Ver o Dashboard
-          </button>
+
+        <div class="hero-features" aria-label="Recursos principais">
+          <span><i class="fi fi-sr-check-circle" aria-hidden="true"></i>Cargo e responsável</span>
+          <span><i class="fi fi-sr-calendar" aria-hidden="true"></i>Prazo e prioridade</span>
+          <span><i class="fi fi-sr-clock" aria-hidden="true"></i>Histórico automático</span>
         </div>
       </div>
-      <img :src="mascot" alt="Mascote ShyDevs" style="width:132px; height:132px; flex:none; object-fit:contain; filter:drop-shadow(0 10px 24px rgba(124,111,255,.3));" />
-    </div>
 
-    <!-- shortcuts -->
-    <div>
-      <div style="font-size:10.5px; font-weight:700; letter-spacing:.09em; color:#8b899f; margin-bottom:12px; font-family:'JetBrains Mono', monospace;">ATALHOS</div>
-      <div ref="shortcutsEl" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
-        <button v-for="(s, i) in SHORTCUTS" :key="i" type="button" @click="go(s.name)" class="shortcut-card"
-          :style="{ textAlign: 'left', background: s.highlight ? 'rgba(124,111,255,.10)' : '#14141d', border: `1px solid ${s.highlight ? 'rgba(124,111,255,.35)' : '#22222f'}`, borderRadius: '12px', padding: '14px', cursor: 'pointer', font: 'inherit' }">
-          <div :style="{ width: '30px', height: '30px', borderRadius: '9px', background: s.bg, color: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', marginBottom: '10px' }">
-            <i :class="`fi ${s.icon}`" aria-hidden="true"></i>
+      <div class="explainer-card" aria-label="Demonstração animada de como o ShyDevs funciona">
+        <header class="explainer-header">
+          <div class="explainer-brand">
+            <span class="brand-mark"><i class="fi fi-sr-clapperboard-play" aria-hidden="true"></i></span>
+            <div><strong>Como funciona</strong><span>Guia visual · 4 passos</span></div>
           </div>
-          <div style="font-size:13px; font-weight:700; color:#f5f4fb;">{{ s.title }}</div>
-          <div :style="{ fontSize: '11.5px', lineHeight: 1.5, color: s.highlight ? '#b0abd6' : '#8b899f', marginTop: '3px' }">{{ s.desc }}</div>
+          <div class="player-controls">
+            <button type="button" :aria-label="playing ? 'Pausar animação' : 'Reproduzir animação'" @click="togglePlayback">
+              <i :class="`fi ${playing ? 'fi-sr-pause' : 'fi-sr-play'}`" aria-hidden="true"></i>
+            </button>
+            <button type="button" aria-label="Reiniciar animação" @click="replay">
+              <i class="fi fi-sr-rotate-right" aria-hidden="true"></i>
+            </button>
+          </div>
+        </header>
+
+        <div class="motion-stage" :class="{ 'is-paused': !playing }">
+          <div class="stage-glow" aria-hidden="true"></div>
+          <Transition mode="out-in" :css="false" @enter="sceneEnter" @leave="sceneLeave">
+            <div :key="activeScene" class="motion-scene">
+              <div v-if="activeScene === 0" class="creation-scene">
+                <div class="mock-topbar scene-item scene-delay-1">
+                  <span class="mock-logo">S</span><span>Quadro de Tarefas</span>
+                  <span class="mock-create"><i class="fi fi-sr-plus" aria-hidden="true"></i>Atribuir tarefa</span>
+                </div>
+                <div class="mock-modal scene-item scene-delay-2">
+                  <div class="mock-modal-title"><span>Nova demanda</span><i class="fi fi-sr-list-check" aria-hidden="true"></i></div>
+                  <label>Título da tarefa</label>
+                  <div class="mock-input typing-field"><span>Finalizar sistema de combate</span><i></i></div>
+                  <label>Descrição</label>
+                  <div class="mock-textarea"><span>Implementar combos, bloqueio e feedback de dano.</span></div>
+                  <div class="mock-form-row">
+                    <div><label>Prazo</label><span class="mock-select">18 de Set.</span></div>
+                    <div><label>Prioridade</label><span class="priority-high">Alta</span></div>
+                  </div>
+                </div>
+                <span class="motion-caption scene-item scene-delay-3"><i class="fi fi-sr-check" aria-hidden="true"></i>Escopo claro antes de delegar</span>
+              </div>
+
+              <div v-else-if="activeScene === 1" class="assignment-scene">
+                <div class="assignment-card scene-item scene-delay-1">
+                  <div class="assignment-title"><span>Quem deve receber?</span><small>Etapa 2 de 2</small></div>
+                  <div class="selection-group">
+                    <label>Cargo necessário</label>
+                    <div class="role-selection"><i class="fi fi-sr-code-simple" aria-hidden="true"></i><span><strong>Scripter</strong><small>3 pessoas disponíveis</small></span><i class="fi fi-sr-check-circle" aria-hidden="true"></i></div>
+                  </div>
+                  <div class="selection-group">
+                    <label>Responsável</label>
+                    <div class="person-options">
+                      <div class="person-option selected scene-item scene-delay-2"><span class="mock-avatar">LS</span><span><strong>Lucas Silva</strong><small>2 tarefas abertas</small></span><i class="fi fi-sr-check" aria-hidden="true"></i></div>
+                      <div class="person-option scene-item scene-delay-3"><span class="mock-avatar alt">BC</span><span><strong>Beatriz Costa</strong><small>5 tarefas abertas</small></span></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="balance-callout scene-item scene-delay-4"><i class="fi fi-sr-bolt" aria-hidden="true"></i><span><strong>Boa distribuição</strong>Lucas está com a menor carga do cargo.</span></div>
+              </div>
+
+              <div v-else-if="activeScene === 2" class="board-scene">
+                <div class="board-toolbar scene-item scene-delay-1"><span><i class="fi fi-sr-table-list" aria-hidden="true"></i>Visão em cards</span><small>3 tarefas no fluxo</small></div>
+                <div class="kanban-columns">
+                  <div class="kanban-column"><span>Pendente <small>1</small></span><div class="ghost-card"></div></div>
+                  <div class="kanban-column active"><span>Em andamento <small>2</small></span></div>
+                  <div class="kanban-column"><span>Concluída <small>0</small></span></div>
+                </div>
+                <div class="moving-task">
+                  <small>SD-128</small>
+                  <strong>Sistema de combate</strong>
+                  <span><i class="fi fi-sr-code-simple" aria-hidden="true"></i>Scripter</span>
+                  <div><i class="fi fi-sr-calendar" aria-hidden="true"></i>18 de Set.<b>Alta</b></div>
+                </div>
+                <div class="drag-pointer"><i class="fi fi-sr-mouse" aria-hidden="true"></i></div>
+                <div class="status-toast"><i class="fi fi-sr-check-circle" aria-hidden="true"></i>Status atualizado</div>
+              </div>
+
+              <div v-else class="dashboard-scene">
+                <div class="dashboard-scene-heading scene-item scene-delay-1"><span><small>Visão geral</small><strong>Saúde da sprint</strong></span><span class="live-chip"><i></i>Ao vivo</span></div>
+                <div class="mini-metrics">
+                  <div class="mini-metric scene-item scene-delay-1"><i class="fi fi-sr-list-check"></i><span><small>Total</small><strong>18</strong></span></div>
+                  <div class="mini-metric purple scene-item scene-delay-2"><i class="fi fi-sr-time-oclock"></i><span><small>Em andamento</small><strong>8</strong></span></div>
+                  <div class="mini-metric red scene-item scene-delay-3"><i class="fi fi-sr-flag"></i><span><small>Atrasadas</small><strong>2</strong></span></div>
+                </div>
+                <div class="dashboard-bottom scene-item scene-delay-3">
+                  <div class="mini-chart">
+                    <div class="chart-title"><span>Carga da equipe</span><small>Esta semana</small></div>
+                    <div class="chart-bars">
+                      <span style="--bar:52%"></span><span style="--bar:76%"></span><span style="--bar:44%"></span><span style="--bar:88%"></span><span style="--bar:64%"></span>
+                    </div>
+                  </div>
+                  <div class="mini-alert"><i class="fi fi-sr-triangle-warning" aria-hidden="true"></i><span><strong>2 itens críticos</strong><small>Confira antes de delegar</small></span></div>
+                </div>
+              </div>
+            </div>
+          </Transition>
+        </div>
+
+        <footer class="explainer-footer">
+          <div class="scene-tabs" role="tablist" aria-label="Etapas da demonstração">
+            <button
+              v-for="(scene, index) in SCENES"
+              :key="scene.title"
+              type="button"
+              role="tab"
+              :aria-selected="activeScene === index"
+              :class="{ active: activeScene === index, complete: activeScene > index }"
+              @click="selectScene(index)"
+            >
+              <span>{{ index + 1 }}</span>{{ scene.title }}
+            </button>
+          </div>
+          <div class="scene-copy" aria-live="polite">
+            <span><i :class="`fi ${SCENES[activeScene].icon}`" aria-hidden="true"></i>Passo {{ activeScene + 1 }}</span>
+            <div><strong>{{ SCENES[activeScene].title }}</strong><p>{{ SCENES[activeScene].text }}</p></div>
+          </div>
+        </footer>
+      </div>
+    </section>
+
+    <section v-if="isAdmin" class="admin-guide">
+      <header class="section-heading">
+        <div>
+          <span class="section-kicker">Seu caminho mais curto</span>
+          <h2>Comece por aqui, admin</h2>
+        </div>
+        <p>Quatro ações organizam o projeto inteiro. Siga a ordem na primeira configuração; depois, use cada área quando precisar.</p>
+      </header>
+
+      <div ref="stepsEl" class="admin-steps">
+        <button
+          v-for="step in ADMIN_STEPS"
+          :key="step.number"
+          type="button"
+          class="admin-step"
+          :class="{ featured: step.featured }"
+          @click="go(step.route)"
+        >
+          <span class="step-number">{{ step.number }}</span>
+          <span class="step-icon"><i :class="`fi ${step.icon}`" aria-hidden="true"></i></span>
+          <strong>{{ step.title }}</strong>
+          <p>{{ step.text }}</p>
+          <span class="step-action">{{ step.action }}<i class="fi fi-sr-arrow-right" aria-hidden="true"></i></span>
         </button>
       </div>
-    </div>
 
-    <!-- tab preview -->
-    <div>
-      <div style="font-size:10.5px; font-weight:700; letter-spacing:.09em; color:#8b899f; margin-bottom:6px; font-family:'JetBrains Mono', monospace;">AS ABAS DO TOPO</div>
-      <div style="font-size:13px; color:#9a97b8; margin-bottom:14px;">Clique numa aba para ver o que ela mostra.</div>
-
-      <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:14px;">
-        <div style="display:inline-flex; flex-wrap:wrap; gap:7px; background:#0e0e14; border:1px solid #22222f; border-radius:10px; padding:4px; margin-bottom:16px;">
-          <button v-for="t in TABS" :key="t.key" type="button" @click="activeTab = t.key"
-            :style="{ display: 'inline-flex', alignItems: 'center', gap: '6px', border: 'none', borderRadius: '8px', padding: '8px 12px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', background: activeTab === t.key ? 'rgba(124,111,255,.16)' : 'transparent', color: activeTab === t.key ? '#b3aaff' : '#8b899f' }">
-            <i :class="`fi ${t.icon}`" aria-hidden="true"></i>{{ t.label }}
-          </button>
+      <aside class="admin-tip">
+        <span class="tip-icon"><i class="fi fi-sr-bolt" aria-hidden="true"></i></span>
+        <div>
+          <span>Dica essencial</span>
+          <strong>Escolha o cargo antes do responsável.</strong>
+          <p>O sistema usa o cargo para mostrar apenas as pessoas preparadas para aquele trabalho e compara a carga entre elas.</p>
         </div>
+        <button type="button" @click="go('new-task')">Testar agora<i class="fi fi-sr-arrow-right" aria-hidden="true"></i></button>
+      </aside>
+    </section>
 
-        <div v-if="activeTab === 'board'" style="display:flex; gap:18px; flex-wrap:wrap;">
-          <div style="flex:1 1 280px; min-width:260px;">
-            <div style="font-size:15px; font-weight:800; color:#f5f4fb; margin-bottom:6px;">Quadro de Tarefas</div>
-            <p style="margin:0 0 12px; font-size:12.5px; line-height:1.6; color:#9a97b8;">A aba padrão. Lista todas as demandas do projeto com cargo, responsável, prazo, prioridade e status. Leitura é pública — qualquer pessoa vê o quadro mesmo sem entrar.</p>
-            <div style="display:flex; flex-direction:column; gap:7px;">
-              <div style="font-size:12px; color:#c7c5dc; display:flex; gap:8px;"><i class="fi fi-sr-filter" style="color:#b3aaff; margin-top:2px;" aria-hidden="true"></i>Chips de cargo em cima: Modelador, Scripter, Vfx Maker…</div>
-              <div style="font-size:12px; color:#c7c5dc; display:flex; gap:8px;"><i class="fi fi-sr-search" style="color:#b3aaff; margin-top:2px;" aria-hidden="true"></i>Busca por título, cargo ou responsável — atalho <span style="font-family:'JetBrains Mono', monospace; background:#0e0e14; border:1px solid #26263a; border-radius:4px; padding:1px 5px;">/</span></div>
-              <div style="font-size:12px; color:#c7c5dc; display:flex; gap:8px;"><i class="fi fi-sr-time-oclock" style="color:#b3aaff; margin-top:2px;" aria-hidden="true"></i>Filtros de status: Todas · Pendentes · Em andamento · Concluídas · Atrasadas</div>
-            </div>
-          </div>
-          <div style="flex:1 1 380px; min-width:340px; background:#101017; border:1px solid #22222f; border-radius:10px; overflow:hidden;">
-            <div style="display:grid; grid-template-columns:minmax(0,1fr) 104px 118px 86px 104px; gap:8px; padding:9px 12px; background:#0e0e14; border-bottom:1px solid #1f1f2b; font-size:9.5px; font-weight:700; letter-spacing:.06em; color:#8b899f;">
-              <div>TAREFA</div><div>CARGO</div><div>RESPONSÁVEL</div><div>PRAZO</div><div>STATUS</div>
-            </div>
-            <div style="display:grid; grid-template-columns:minmax(0,1fr) 104px 118px 86px 104px; gap:8px; padding:10px 12px; border-bottom:1px solid #1a1a25; align-items:center;">
-              <div style="min-width:0;"><span style="font-family:'JetBrains Mono', monospace; font-size:9.5px; color:#8f8da8;">SD-104</span> <span style="font-size:12px; font-weight:700; color:#f5f4fb;">Lobby v2 — props</span></div>
-              <div><span style="display:inline-flex; align-items:center; gap:4px; border-radius:6px; padding:3px 7px; font-size:10px; font-weight:700; background:color-mix(in oklab, oklch(0.62 0.15 45) 20%, #14141d); color:color-mix(in oklab, oklch(0.62 0.15 45) 75%, #fff);"><i class="fi fi-sr-model-cube" aria-hidden="true"></i>Modelador</span></div>
-              <div style="display:flex; align-items:center; gap:6px; min-width:0;"><span style="width:20px; height:20px; border-radius:50%; flex:none; background:color-mix(in oklab, oklch(0.62 0.15 45) 45%, #14141d); color:#f5f4fb; font-size:8.5px; font-weight:800; display:flex; align-items:center; justify-content:center;">CM</span><span style="font-size:11px; font-weight:600; color:#d6d4e6;">Clara M.</span></div>
-              <div style="font-size:10.5px; font-weight:600; color:#9a97b8;"><i class="fi fi-sr-calendar" style="opacity:.75; font-size:9.5px;" aria-hidden="true"></i> 22 de Out</div>
-              <div><span style="display:inline-flex; border-radius:6px; padding:3px 8px; font-size:10px; font-weight:700; background:rgba(124,111,255,.18); color:#b3aaff;">Em andamento</span></div>
-            </div>
-            <div style="display:grid; grid-template-columns:minmax(0,1fr) 104px 118px 86px 104px; gap:8px; padding:10px 12px; align-items:center;">
-              <div style="min-width:0;"><span style="font-family:'JetBrains Mono', monospace; font-size:9.5px; color:#8f8da8;">SD-112</span> <span style="font-size:12px; font-weight:700; color:#f5f4fb;">Hitbox da espada</span></div>
-              <div><span style="display:inline-flex; align-items:center; gap:4px; border-radius:6px; padding:3px 7px; font-size:10px; font-weight:700; background:color-mix(in oklab, oklch(0.62 0.15 265) 20%, #14141d); color:color-mix(in oklab, oklch(0.62 0.15 265) 75%, #fff);"><i class="fi fi-sr-code-simple" aria-hidden="true"></i>Scripter</span></div>
-              <div style="display:flex; align-items:center; gap:6px; min-width:0;"><span style="width:20px; height:20px; border-radius:50%; flex:none; background:color-mix(in oklab, oklch(0.62 0.15 265) 45%, #14141d); color:#f5f4fb; font-size:8.5px; font-weight:800; display:flex; align-items:center; justify-content:center;">LS</span><span style="font-size:11px; font-weight:600; color:#d6d4e6;">Lucas S.</span></div>
-              <div style="font-size:10.5px; font-weight:600; color:#ff8f98;"><i class="fi fi-sr-calendar" style="opacity:.75; font-size:9.5px;" aria-hidden="true"></i> Ontem</div>
-              <div><span style="display:inline-flex; border-radius:6px; padding:3px 8px; font-size:10px; font-weight:700; background:rgba(154,154,176,.12); color:#adaac8;">Pendente</span></div>
-            </div>
-          </div>
+    <section v-else class="member-guide">
+      <header class="section-heading">
+        <div>
+          <span class="section-kicker">Sua rotina no projeto</span>
+          <h2>Encontre, execute e registre</h2>
         </div>
-
-        <div v-else-if="activeTab === 'dashboard'" style="display:flex; gap:18px; flex-wrap:wrap;">
-          <div style="flex:1 1 280px; min-width:260px;">
-            <div style="font-size:15px; font-weight:800; color:#f5f4fb; margin-bottom:6px;">Dashboard</div>
-            <p style="margin:0 0 12px; font-size:12.5px; line-height:1.6; color:#9a97b8;">Os mesmos dados do quadro, só que somados. Serve para ver se alguém está sobrecarregado antes de atribuir mais uma tarefa.</p>
-            <div style="display:flex; flex-direction:column; gap:7px;">
-              <div style="font-size:12px; color:#c7c5dc; display:flex; gap:8px;"><i class="fi fi-sr-chart-simple" style="color:#b3aaff; margin-top:2px;" aria-hidden="true"></i>Total, atrasadas, concluídas e em andamento no topo</div>
-              <div style="font-size:12px; color:#c7c5dc; display:flex; gap:8px;"><i class="fi fi-sr-scale-comparison" style="color:#b3aaff; margin-top:2px;" aria-hidden="true"></i>Barras por status, prioridade, cargo e carga por pessoa</div>
-            </div>
-          </div>
-          <div style="flex:1 1 380px; min-width:340px;">
-            <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; margin-bottom:10px;">
-              <div style="background:#101017; border:1px solid #22222f; border-radius:10px; padding:11px;"><div style="font-size:19px; font-weight:800; color:#f5f4fb;">18</div><div style="font-size:10.5px; color:#8b899f; margin-top:2px;">Total</div></div>
-              <div style="background:#101017; border:1px solid #22222f; border-radius:10px; padding:11px;"><div style="font-size:19px; font-weight:800; color:#ff8f98;">2</div><div style="font-size:10.5px; color:#8b899f; margin-top:2px;">Atrasadas</div></div>
-              <div style="background:#101017; border:1px solid #22222f; border-radius:10px; padding:11px;"><div style="font-size:19px; font-weight:800; color:#6fe3a4;">3</div><div style="font-size:10.5px; color:#8b899f; margin-top:2px;">Concluídas</div></div>
-              <div style="background:#101017; border:1px solid #22222f; border-radius:10px; padding:11px;"><div style="font-size:19px; font-weight:800; color:#b3aaff;">8</div><div style="font-size:10.5px; color:#8b899f; margin-top:2px;">Em and.</div></div>
-            </div>
-            <div style="background:#101017; border:1px solid #22222f; border-radius:10px; padding:13px;">
-              <div style="font-size:11.5px; font-weight:800; color:#f5f4fb; margin-bottom:10px;">Carga por pessoa</div>
-              <div style="margin-bottom:9px;">
-                <div style="display:flex; justify-content:space-between; font-size:10.5px; color:#c7c5dc; margin-bottom:4px;"><span>Lucas Silva</span><span style="color:#8b899f;">6 abertas · 2 feitas</span></div>
-                <div style="background:#0e0e14; border-radius:6px; height:8px; overflow:hidden; display:flex;"><div style="width:60%; height:100%; background:#7c6fff;"></div><div style="width:20%; height:100%; background:#3fcf8e;"></div></div>
-              </div>
-              <div>
-                <div style="display:flex; justify-content:space-between; font-size:10.5px; color:#c7c5dc; margin-bottom:4px;"><span>Clara Martins</span><span style="color:#8b899f;">4 abertas · 3 feitas</span></div>
-                <div style="background:#0e0e14; border-radius:6px; height:8px; overflow:hidden; display:flex;"><div style="width:40%; height:100%; background:#7c6fff;"></div><div style="width:30%; height:100%; background:#3fcf8e;"></div></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="activeTab === 'history'" style="display:flex; gap:18px; flex-wrap:wrap;">
-          <div style="flex:1 1 280px; min-width:260px;">
-            <div style="font-size:15px; font-weight:800; color:#f5f4fb; margin-bottom:6px;">Histórico</div>
-            <p style="margin:0 0 12px; font-size:12.5px; line-height:1.6; color:#9a97b8;">Registro automático de tudo: criação de tarefa, mudança de status, reatribuição e anexos. Aparece só para quem está logado.</p>
-            <div style="font-size:12px; color:#c7c5dc; display:flex; gap:8px;"><i class="fi fi-sr-clock" style="color:#b3aaff; margin-top:2px;" aria-hidden="true"></i>Ninguém precisa anotar nada — o log é gerado pelo próprio sistema.</div>
-          </div>
-          <div style="flex:1 1 380px; min-width:340px; background:#101017; border:1px solid #22222f; border-radius:10px; padding:13px; display:flex; flex-direction:column; gap:10px;">
-            <div style="display:flex; gap:9px;"><i class="fi fi-sr-clock" style="color:#8f8da8; font-size:11px; margin-top:3px;" aria-hidden="true"></i><div><div style="font-size:12px; color:#e4e2f1;"><span style="font-weight:700; color:#f5f4fb;">Akanub</span> — atribuiu SD-112 a Lucas Silva</div><div style="font-size:10.5px; color:#8f8da8; margin-top:2px;">hoje às 14:02</div></div></div>
-            <div style="display:flex; gap:9px;"><i class="fi fi-sr-clock" style="color:#8f8da8; font-size:11px; margin-top:3px;" aria-hidden="true"></i><div><div style="font-size:12px; color:#e4e2f1;"><span style="font-weight:700; color:#f5f4fb;">Beatriz Costa</span> — anexou uma prova em SD-090</div><div style="font-size:10.5px; color:#8f8da8; margin-top:2px;">hoje às 11:47</div></div></div>
-            <div style="display:flex; gap:9px;"><i class="fi fi-sr-clock" style="color:#8f8da8; font-size:11px; margin-top:3px;" aria-hidden="true"></i><div><div style="font-size:12px; color:#e4e2f1;"><span style="font-weight:700; color:#f5f4fb;">Clara Martins</span> — moveu SD-104 para Em andamento</div><div style="font-size:10.5px; color:#8f8da8; margin-top:2px;">ontem às 18:20</div></div></div>
-          </div>
-        </div>
-
-        <div v-else-if="activeTab === 'team'" style="display:flex; gap:18px; flex-wrap:wrap;">
-          <div style="flex:1 1 280px; min-width:260px;">
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-              <span style="font-size:15px; font-weight:800; color:#f5f4fb;">Equipe</span>
-              <span style="font-size:9px; font-weight:700; letter-spacing:.04em; color:#b3aaff; background:rgba(124,111,255,.16); border-radius:999px; padding:2px 6px;">SÓ ADMIN</span>
-            </div>
-            <p style="margin:0 0 12px; font-size:12.5px; line-height:1.6; color:#9a97b8;">Adicionar ou remover pessoas, definir cargos e senha, e promover alguém a admin. A aba só aparece se você for administrador.</p>
-            <div style="font-size:12px; color:#c7c5dc; display:flex; gap:8px;"><i class="fi fi-sr-users" style="color:#b3aaff; margin-top:2px;" aria-hidden="true"></i>Sempre precisa sobrar pelo menos um admin.</div>
-          </div>
-          <div style="flex:1 1 380px; min-width:340px; background:#101017; border:1px solid #22222f; border-radius:10px; padding:13px; display:flex; flex-direction:column; gap:8px;">
-            <div style="display:flex; align-items:center; gap:10px; background:#0e0e14; border:1px solid #22222f; border-radius:9px; padding:9px 11px;">
-              <span style="width:26px; height:26px; border-radius:50%; flex:none; background:#7c6fff; color:#0a0a10; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center;">AK</span>
-              <div style="flex:1;"><div style="font-size:12px; font-weight:700; color:#f5f4fb;">Akanub</div><div style="font-size:10.5px; color:#8b899f;">Manager</div></div>
-              <span style="font-size:9px; font-weight:700; color:#b3aaff; background:rgba(124,111,255,.16); border-radius:999px; padding:2px 6px;">ADMIN</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:10px; background:#0e0e14; border:1px solid #22222f; border-radius:9px; padding:9px 11px;">
-              <span style="width:26px; height:26px; border-radius:50%; flex:none; background:color-mix(in oklab, oklch(0.62 0.15 265) 45%, #14141d); color:#f5f4fb; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center;">LS</span>
-              <div style="flex:1;"><div style="font-size:12px; font-weight:700; color:#f5f4fb;">Lucas Silva</div><div style="font-size:10.5px; color:#8b899f;">Scripter</div></div>
-            </div>
-          </div>
-        </div>
+        <p>Entre com sua conta para filtrar suas tarefas, atualizar o andamento e anexar provas da entrega.</p>
+      </header>
+      <div class="member-actions">
+        <button type="button" @click="go('board')"><i class="fi fi-sr-user" aria-hidden="true"></i><span><strong>Veja suas tarefas</strong><small>Use o filtro “Minhas tarefas” no quadro.</small></span><i class="fi fi-sr-arrow-right" aria-hidden="true"></i></button>
+        <button type="button" @click="go('board')"><i class="fi fi-sr-check-circle" aria-hidden="true"></i><span><strong>Atualize o andamento</strong><small>Abra uma tarefa para registrar progresso e entrega.</small></span><i class="fi fi-sr-arrow-right" aria-hidden="true"></i></button>
       </div>
-    </div>
+    </section>
 
-    <!-- how to assign -->
-    <div>
-      <div style="font-size:10.5px; font-weight:700; letter-spacing:.09em; color:#8b899f; margin-bottom:6px; font-family:'JetBrains Mono', monospace;">COMO ATRIBUIR UMA TAREFA</div>
-      <div style="font-size:13px; color:#9a97b8; margin-bottom:14px;">Só o administrador atribui. Leva menos de um minuto.</div>
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px;">
-        <div v-for="s in STEPS" :key="s.n" :style="{ background: s.highlight ? 'rgba(124,111,255,.10)' : '#14141d', border: `1px solid ${s.highlight ? 'rgba(124,111,255,.3)' : '#22222f'}`, borderRadius: '12px', padding: '14px' }">
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-            <span style="width:22px; height:22px; border-radius:7px; background:#7c6fff; color:#0a0a10; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; flex:none;">{{ s.n }}</span>
-            <span style="font-size:13px; font-weight:700; color:#f5f4fb;">{{ s.title }}</span>
-          </div>
-          <div :style="{ fontSize: '11.5px', lineHeight: 1.55, color: s.highlight ? '#b0abd6' : '#8b899f' }">{{ s.desc }}</div>
+    <section class="responsibility-section">
+      <header class="section-heading compact">
+        <div>
+          <span class="section-kicker">Responsabilidades claras</span>
+          <h2>Quem faz o quê no ShyDevs?</h2>
         </div>
-      </div>
-    </div>
+      </header>
 
-    <!-- two column explainer -->
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px;">
-      <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">
-        <div style="font-size:13px; font-weight:700; color:#f5f4fb; margin-bottom:6px;">Modo Tabela ou Modo Cards</div>
-        <p style="margin:0 0 12px; font-size:11.5px; line-height:1.6; color:#8b899f;">O mesmo quadro em duas visões. Tabela é para ler tudo de uma vez e agir em massa. Cards é o Kanban por status — o admin arrasta o card de Pendente para Em andamento e para Concluída.</p>
-        <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:7px;">
-          <div style="background:#101017; border:1px solid #22222f; border-radius:9px; padding:8px;"><div style="font-size:10px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Pendente <span style="opacity:.6;">4</span></div><div style="background:#0e0e14; border:1px solid #22222f; border-radius:7px; padding:7px;"><div style="font-family:'JetBrains Mono', monospace; font-size:8.5px; color:#8f8da8; margin-bottom:4px;">SD-112</div><div style="font-size:10.5px; font-weight:700; color:#f5f4fb;">Hitbox da espada</div></div></div>
-          <div style="background:#101017; border:1px solid #22222f; border-radius:9px; padding:8px;"><div style="font-size:10px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Em andamento <span style="opacity:.6;">8</span></div><div style="background:#0e0e14; border:1px dashed #7c6fff; border-radius:7px; padding:7px;"><div style="font-family:'JetBrains Mono', monospace; font-size:8.5px; color:#8f8da8; margin-bottom:4px;">SD-104</div><div style="font-size:10.5px; font-weight:700; color:#f5f4fb;">Lobby v2 — props</div></div></div>
-          <div style="background:#101017; border:1px solid #22222f; border-radius:9px; padding:8px;"><div style="font-size:10px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Concluída <span style="opacity:.6;">3</span></div><div style="background:#0e0e14; border:1px solid #22222f; border-radius:7px; padding:7px;"><div style="font-family:'JetBrains Mono', monospace; font-size:8.5px; color:#8f8da8; margin-bottom:4px;">SD-090</div><div style="font-size:10.5px; font-weight:700; color:#f5f4fb;">VFX do portal</div></div></div>
-        </div>
-      </div>
-      <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">
-        <div style="font-size:13px; font-weight:700; color:#f5f4fb; margin-bottom:6px;">A página de cada tarefa</div>
-        <p style="margin:0 0 12px; font-size:11.5px; line-height:1.6; color:#8b899f;">Clique numa linha do quadro e a tarefa abre em endereço próprio, fácil de mandar para alguém. Dentro dela: checklist, anexos e histórico.</p>
-        <div style="display:flex; flex-direction:column; gap:7px;">
-          <div style="background:#101017; border:1px solid #22222f; border-radius:9px; padding:10px;">
-            <div style="font-size:11px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Checklist do que fazer <span style="font-weight:500; color:#8b899f;">2/3</span></div>
-            <div style="display:flex; align-items:center; gap:8px; background:#0e0e14; border:1px solid #22222f; border-radius:7px; padding:6px 9px;">
-              <span style="width:13px; height:13px; border-radius:4px; background:#7c6fff; color:#0a0a10; font-size:8px; display:flex; align-items:center; justify-content:center; flex:none;"><i class="fi fi-sr-check" aria-hidden="true"></i></span>
-              <span style="font-size:11px; color:#8f8da8; text-decoration:line-through;">Blockout aprovado</span>
-            </div>
-          </div>
-          <div style="display:flex; gap:7px;">
-            <div style="flex:1; background:#101017; border:1px solid #22222f; border-radius:9px; padding:10px;"><div style="font-size:11px; font-weight:700; color:#c7c5dc; display:flex; align-items:center; gap:6px;"><i class="fi fi-sr-paperclip" style="color:#b3aaff;" aria-hidden="true"></i>Anexos</div><div style="font-size:10.5px; color:#8b899f; margin-top:4px; line-height:1.5;">Print, vídeo ou link como prova do que foi feito. Qualquer pessoa logada pode anexar.</div></div>
-            <div style="flex:1; background:#101017; border:1px solid #22222f; border-radius:9px; padding:10px;"><div style="font-size:11px; font-weight:700; color:#c7c5dc; display:flex; align-items:center; gap:6px;"><i class="fi fi-sr-clock" style="color:#b3aaff;" aria-hidden="true"></i>Histórico</div><div style="font-size:10.5px; color:#8b899f; margin-top:4px; line-height:1.5;">Cada mudança de status e reatribuição fica registrada na própria tarefa.</div></div>
-          </div>
-        </div>
-      </div>
-    </div>
+      <div class="responsibility-grid">
+        <article class="responsibility-card admin-card">
+          <header><span><i class="fi fi-sr-shield-check" aria-hidden="true"></i></span><div><small>Administrador</small><strong>Organiza e decide</strong></div></header>
+          <ul>
+            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Cadastra pessoas e define cargos</li>
+            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Cria, atribui e prioriza tarefas</li>
+            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Move, edita ou exclui demandas</li>
+            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Acompanha capacidade e atrasos</li>
+          </ul>
+        </article>
 
-    <!-- footer -->
-    <div style="padding:16px 0 0; border-top:1px solid #1a1a25; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-      <span style="font-size:11.5px; color:#8b899f;">Leitura é pública. Só o administrador cria, edita e exclui tarefas.</span>
-      <div style="flex:1;"></div>
-      <button type="button" @click="go('board')" style="border:none; background:transparent; color:#8a7dff; font-size:12px; font-weight:700; cursor:pointer;">Ir para o quadro →</button>
-    </div>
+        <article class="responsibility-card team-card">
+          <header><span><i class="fi fi-sr-users" aria-hidden="true"></i></span><div><small>Equipe</small><strong>Executa e comunica</strong></div></header>
+          <ul>
+            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Consulta suas próprias demandas</li>
+            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Atualiza o status do trabalho</li>
+            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Marca itens do checklist</li>
+            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Anexa arquivos e registra a entrega</li>
+          </ul>
+        </article>
 
-  </div>
+        <aside class="shortcut-panel">
+          <span class="section-kicker">Atalhos úteis</span>
+          <div><kbd>N</kbd><span><strong>Nova tarefa</strong><small>Disponível para admins</small></span></div>
+          <div><kbd>/</kbd><span><strong>Buscar no quadro</strong><small>Encontre título, cargo ou pessoa</small></span></div>
+          <div><kbd>Esc</kbd><span><strong>Fechar janelas</strong><small>Volte rapidamente ao contexto</small></span></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="home-cta">
+      <div><span>Pronto para organizar a próxima entrega?</span><strong>{{ isAdmin ? 'Crie uma demanda clara em menos de um minuto.' : 'Veja agora o que está acontecendo no projeto.' }}</strong></div>
+      <button type="button" @click="go(isAdmin ? 'new-task' : 'board')">
+        {{ isAdmin ? 'Atribuir tarefa' : 'Abrir o quadro' }}<i class="fi fi-sr-arrow-right" aria-hidden="true"></i>
+      </button>
+    </section>
+  </main>
 </template>
+
+<style scoped>
+.home-page {
+  --panel: #14141d;
+  --panel-soft: #101017;
+  --border: #242432;
+  --muted: #918eaa;
+  --text: #f5f4fb;
+  --purple: #7c6fff;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  padding: 30px 26px 42px;
+  color: var(--text);
+}
+
+button { font: inherit; }
+.home-hero { display: grid; grid-template-columns: minmax(0, .88fr) minmax(520px, 1.12fr); gap: 38px; align-items: center; min-height: 560px; padding-block: 18px 36px; }
+.hero-copy { min-width: 0; }
+.eyebrow,
+.section-kicker { display: inline-flex; align-items: center; gap: 7px; color: #aaa2ff; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.eyebrow { padding: 6px 9px; border: 1px solid rgba(124,111,255,.24); border-radius: 999px; background: rgba(124,111,255,.09); }
+.hero-copy h1 { max-width: 560px; margin: 20px 0 16px; color: var(--text); font-size: clamp(36px, 4.2vw, 58px); font-weight: 850; line-height: .98; letter-spacing: -.055em; text-wrap: balance; }
+.hero-copy h1 span { display: block; color: #918cae; }
+.hero-copy > p { max-width: 540px; margin: 0; color: #aaa7bd; font-size: 14px; line-height: 1.7; }
+.hero-actions { display: flex; gap: 10px; margin-top: 24px; flex-wrap: wrap; }
+.primary-button,
+.secondary-button,
+.home-cta button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 16px; border-radius: 10px; font-size: 12.5px; font-weight: 800; cursor: pointer; transition-property: transform, background-color, border-color, color; transition-duration: 150ms; }
+.primary-button { border: 1px solid var(--purple); background: var(--purple); color: #0a0a10; box-shadow: 0 10px 28px rgba(124,111,255,.18); }
+.secondary-button { border: 1px solid #2a2938; background: #14141d; color: #c9c6dc; }
+.hero-features { display: flex; gap: 15px; margin-top: 24px; flex-wrap: wrap; color: #7f7c92; font-size: 10px; }
+.hero-features span { display: inline-flex; align-items: center; gap: 5px; }
+.hero-features i { color: #56d79a; font-size: 9px; }
+
+.explainer-card { min-width: 0; overflow: hidden; border: 1px solid #29283a; border-radius: 16px; background: #121219; box-shadow: 0 28px 70px rgba(0,0,0,.3), 0 0 60px rgba(124,111,255,.055); }
+.explainer-header { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding-inline: 15px; border-bottom: 1px solid #232330; background: rgba(255,255,255,.012); }
+.explainer-brand { display: flex; align-items: center; gap: 9px; }
+.brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid rgba(124,111,255,.25); border-radius: 8px; background: rgba(124,111,255,.12); color: #b8b1ff; font-size: 12px; }
+.brand-mark i { display: block; line-height: 1; transform: translateY(1px); }
+.explainer-brand strong,
+.explainer-brand div > span { display: block; }
+.explainer-brand strong { font-size: 11.5px; }
+.explainer-brand div span { margin-top: 2px; color: #706e82; font-size: 8.5px; }
+.player-controls { display: flex; gap: 5px; }
+.player-controls button { display: grid; place-items: center; width: 29px; height: 29px; border: 1px solid #292837; border-radius: 8px; background: #0e0e14; color: #89869e; font-size: 9px; cursor: pointer; transition-property: border-color, color, background-color; transition-duration: 150ms; }
+.player-controls button:hover { border-color: #413e5b; background: #171620; color: #c3bcff; }
+
+.motion-stage { position: relative; height: 322px; overflow: hidden; background-color: #0b0b10; background-image: linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px); background-size: 24px 24px; }
+.motion-stage.is-paused .scene-item,
+.motion-stage.is-paused .typing-field i,
+.motion-stage.is-paused .moving-task,
+.motion-stage.is-paused .drag-pointer,
+.motion-stage.is-paused .status-toast,
+.motion-stage.is-paused .chart-bars span { animation-play-state: paused; }
+.stage-glow { position: absolute; inset: -35% 5% auto; height: 210px; border-radius: 50%; background: rgba(124,111,255,.11); filter: blur(70px); pointer-events: none; }
+.motion-scene { position: absolute; inset: 0; padding: 20px; }
+.scene-item { animation: scene-item-in .6s var(--ease-out) both; }
+.scene-delay-1 { animation-delay: .1s; }
+.scene-delay-2 { animation-delay: .45s; }
+.scene-delay-3 { animation-delay: .85s; }
+.scene-delay-4 { animation-delay: 1.25s; }
+
+.mock-topbar { display: flex; align-items: center; gap: 7px; height: 35px; padding: 0 9px; border: 1px solid #242330; border-radius: 9px; background: #121219; color: #aaa7bd; font-size: 8.5px; }
+.mock-logo { display: grid; place-items: center; width: 17px; height: 17px; border-radius: 5px; background: #7c6fff; color: #0a0a10; font-size: 8px; font-weight: 900; }
+.mock-create { display: inline-flex; align-items: center; gap: 4px; margin-inline-start: auto; padding: 5px 7px; border-radius: 6px; background: #7c6fff; color: #0a0a10; font-size: 7.5px; font-weight: 800; }
+.mock-modal { position: relative; width: 72%; margin: 13px auto 0; padding: 13px; border: 1px solid #2b2a3b; border-radius: 11px; background: #15151e; box-shadow: 0 18px 34px rgba(0,0,0,.28); }
+.mock-modal-title { display: flex; justify-content: space-between; margin-bottom: 11px; color: #eeecf6; font-size: 10px; font-weight: 800; }
+.mock-modal-title i { color: #8b80ff; }
+.mock-modal label,
+.selection-group > label { display: block; margin-bottom: 4px; color: #747187; font-size: 6.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.mock-input,
+.mock-textarea,
+.mock-select { border: 1px solid #292837; border-radius: 6px; background: #0f0f15; color: #c8c5d8; font-size: 8px; }
+.mock-input { display: flex; align-items: center; min-height: 26px; padding: 0 8px; }
+.typing-field span { overflow: hidden; white-space: nowrap; animation: type-text 1.25s steps(27) .75s both; }
+.typing-field i { width: 1px; height: 11px; margin-inline-start: 2px; background: #a79fff; animation: caret-blink .65s linear .75s infinite; }
+.mock-textarea { min-height: 34px; margin-bottom: 9px; padding: 7px 8px; line-height: 1.45; }
+.mock-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mock-select,
+.priority-high { display: flex; align-items: center; min-height: 24px; padding-inline: 7px; }
+.priority-high { border: 1px solid rgba(232,93,106,.2); border-radius: 6px; background: rgba(232,93,106,.1); color: #ff929b; font-size: 7.5px; font-weight: 800; }
+.motion-caption { position: absolute; inset-inline-end: 20px; bottom: 17px; display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border: 1px solid rgba(63,207,142,.2); border-radius: 7px; background: rgba(63,207,142,.08); color: #73dda7; font-size: 7.5px; font-weight: 700; }
+
+.assignment-card { width: 78%; margin: 4px auto 0; padding: 15px; border: 1px solid #292837; border-radius: 12px; background: #14141d; box-shadow: 0 18px 38px rgba(0,0,0,.24); }
+.assignment-title { display: flex; justify-content: space-between; margin-bottom: 14px; }
+.assignment-title span { font-size: 11px; font-weight: 800; }
+.assignment-title small { color: #77748c; font-size: 7.5px; }
+.selection-group + .selection-group { margin-top: 11px; }
+.role-selection,
+.person-option { display: flex; align-items: center; gap: 8px; border: 1px solid #292837; border-radius: 8px; background: #0f0f15; }
+.role-selection { min-height: 42px; padding: 0 10px; color: #a9a1ff; }
+.role-selection > i:last-child { margin-inline-start: auto; color: #63dda0; }
+.role-selection span,
+.person-option > span:nth-child(2) { flex: 1; }
+.role-selection strong,
+.role-selection small,
+.person-option strong,
+.person-option small { display: block; }
+.role-selection strong,
+.person-option strong { color: #d9d6e8; font-size: 8.5px; }
+.role-selection small,
+.person-option small { margin-top: 2px; color: #716e83; font-size: 7px; }
+.person-options { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.person-option { min-height: 48px; padding: 0 8px; }
+.person-option.selected { border-color: rgba(124,111,255,.55); background: rgba(124,111,255,.08); }
+.person-option > i { color: #a99fff; font-size: 8px; }
+.mock-avatar { display: grid; place-items: center; width: 25px; height: 25px; flex: none; border-radius: 50%; background: #786cf0; color: #0b0b10; font-size: 7px; font-weight: 900; }
+.mock-avatar.alt { background: #cb9a54; }
+.balance-callout { display: flex; align-items: center; gap: 8px; width: 66%; margin: 10px auto 0; padding: 8px 10px; border: 1px solid rgba(63,207,142,.18); border-radius: 8px; background: rgba(63,207,142,.07); color: #67d89f; }
+.balance-callout > i { font-size: 9px; }
+.balance-callout span { color: #89869d; font-size: 7.5px; }
+.balance-callout strong { margin-inline-end: 4px; color: #6fdfa5; }
+
+.board-toolbar { display: flex; justify-content: space-between; align-items: center; height: 34px; padding-inline: 10px; border: 1px solid #242330; border-radius: 8px; background: #121219; color: #c4c1d4; font-size: 8px; font-weight: 800; }
+.board-toolbar span { display: inline-flex; align-items: center; gap: 5px; }
+.board-toolbar i { color: #9d94ff; }
+.board-toolbar small { color: #6e6b7e; font-size: 7px; font-weight: 600; }
+.kanban-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; height: 232px; margin-top: 9px; }
+.kanban-column { position: relative; padding: 10px; border: 1px solid #22212e; border-radius: 9px; background: rgba(18,18,25,.82); }
+.kanban-column.active { border-color: rgba(124,111,255,.28); background: rgba(124,111,255,.035); }
+.kanban-column > span { color: #9a97aa; font-size: 7.5px; font-weight: 800; }
+.kanban-column > span small { color: #656275; }
+.ghost-card { height: 88px; margin-top: 10px; border: 1px dashed #2c2b3a; border-radius: 8px; }
+.moving-task { position: absolute; inset-inline-start: 30px; top: 84px; z-index: 2; width: calc((100% - 76px) / 3); padding: 10px; border: 1px solid rgba(124,111,255,.48); border-radius: 8px; background: #181721; box-shadow: 0 14px 26px rgba(0,0,0,.32); animation: move-task 2.2s var(--ease-out) .65s both; }
+.moving-task small,
+.moving-task strong,
+.moving-task > span { display: block; }
+.moving-task small { color: #716d86; font-size: 6.5px; }
+.moving-task strong { margin: 4px 0 9px; color: #e5e2ee; font-size: 8.5px; }
+.moving-task > span { color: #a49bf8; font-size: 7px; }
+.moving-task > span i { margin-inline-end: 4px; }
+.moving-task div { display: flex; align-items: center; gap: 4px; margin-top: 9px; color: #7f7c91; font-size: 6.5px; }
+.moving-task b { margin-inline-start: auto; color: #ff8f98; font-size: 6.5px; }
+.drag-pointer { position: absolute; inset-inline-start: 31%; top: 168px; z-index: 3; color: #f5f4fb; filter: drop-shadow(0 3px 5px #000); animation: move-pointer 2.2s var(--ease-out) .65s both; }
+.status-toast { position: absolute; inset-inline-end: 24px; bottom: 15px; display: flex; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid rgba(63,207,142,.22); border-radius: 7px; background: #13231c; color: #70dfa5; font-size: 7.5px; font-weight: 800; animation: toast-in .5s var(--ease-out) 2.55s both; }
+
+.dashboard-scene-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.dashboard-scene-heading small,
+.dashboard-scene-heading strong { display: block; }
+.dashboard-scene-heading small { color: #77748b; font-size: 7px; text-transform: uppercase; letter-spacing: .08em; }
+.dashboard-scene-heading strong { margin-top: 4px; font-size: 12px; }
+.live-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid rgba(63,207,142,.18); border-radius: 999px; color: #73dca7; font-size: 7px; }
+.live-chip i { width: 5px; height: 5px; border-radius: 50%; background: #3fcf8e; box-shadow: 0 0 8px #3fcf8e; }
+.mini-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mini-metric { display: flex; align-items: center; gap: 9px; min-height: 55px; padding: 0 10px; border: 1px solid #242330; border-radius: 9px; background: #121219; }
+.mini-metric > i { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 8px; background: rgba(154,154,176,.09); color: #aaa7bb; font-size: 9px; }
+.mini-metric.purple > i { background: rgba(124,111,255,.11); color: #aaa1ff; }
+.mini-metric.red > i { background: rgba(232,93,106,.1); color: #ff8f98; }
+.mini-metric small,
+.mini-metric strong { display: block; }
+.mini-metric small { color: #767386; font-size: 6.5px; }
+.mini-metric strong { margin-top: 3px; font-size: 13px; }
+.dashboard-bottom { display: grid; grid-template-columns: 1.3fr .7fr; gap: 8px; margin-top: 9px; }
+.mini-chart,
+.mini-alert { min-height: 135px; border: 1px solid #242330; border-radius: 9px; background: #121219; }
+.mini-chart { padding: 11px; }
+.chart-title { display: flex; justify-content: space-between; color: #b9b6ca; font-size: 8px; font-weight: 800; }
+.chart-title small { color: #6f6c80; font-size: 6.5px; font-weight: 600; }
+.chart-bars { display: flex; align-items: flex-end; gap: 8px; height: 86px; padding: 10px 5px 0; border-bottom: 1px solid #272633; }
+.chart-bars span { flex: 1; height: var(--bar); border-radius: 4px 4px 1px 1px; background: linear-gradient(#8d83ff, #5d52d1); transform-origin: bottom; animation: grow-bar .8s var(--ease-out) 1s both; }
+.mini-alert { display: grid; place-content: center; justify-items: center; padding: 12px; text-align: center; }
+.mini-alert > i { display: grid; place-items: center; width: 32px; height: 32px; margin-bottom: 8px; border-radius: 9px; background: rgba(232,93,106,.1); color: #ff8f98; }
+.mini-alert strong,
+.mini-alert small { display: block; }
+.mini-alert strong { font-size: 8.5px; }
+.mini-alert small { margin-top: 4px; color: #777487; font-size: 6.5px; }
+
+.explainer-footer { padding: 14px 15px 15px; border-top: 1px solid #232330; }
+.scene-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.scene-tabs button { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 6px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #656276; font-size: 7px; font-weight: 700; text-align: start; cursor: pointer; transition-property: color, background-color, border-color; transition-duration: 150ms; }
+.scene-tabs button span { display: grid; place-items: center; width: 17px; height: 17px; flex: none; border: 1px solid #2d2c3a; border-radius: 5px; color: #777487; }
+.scene-tabs button.active { border-color: rgba(124,111,255,.2); background: rgba(124,111,255,.07); color: #c1bbff; }
+.scene-tabs button.active span { border-color: #7c6fff; background: #7c6fff; color: #0a0a10; }
+.scene-tabs button.complete span { border-color: rgba(63,207,142,.24); color: #5bdc9b; }
+.scene-copy { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: start; min-height: 47px; margin-top: 12px; padding-top: 11px; border-top: 1px solid rgba(255,255,255,.035); }
+.scene-copy > span { display: inline-flex; align-items: center; gap: 4px; color: #8d85e7; font-size: 7px; font-weight: 800; text-transform: uppercase; }
+.scene-copy strong { display: block; color: #d9d6e7; font-size: 9px; }
+.scene-copy p { margin: 3px 0 0; color: #777487; font-size: 8px; line-height: 1.45; }
+
+.admin-guide,
+.member-guide,
+.responsibility-section { padding-block: 52px; }
+.section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; margin-bottom: 22px; }
+.section-heading h2 { margin: 7px 0 0; font-size: clamp(24px, 3vw, 34px); line-height: 1; letter-spacing: -.035em; }
+.section-heading > p { max-width: 480px; margin: 0; color: #8e8ba2; font-size: 12px; line-height: 1.6; }
+.section-heading.compact { margin-bottom: 20px; }
+.admin-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.admin-step { position: relative; display: flex; flex-direction: column; align-items: flex-start; min-width: 0; min-height: 245px; padding: 15px; overflow: hidden; border: 1px solid #242432; border-radius: 13px; background: #14141d; color: inherit; text-align: start; cursor: pointer; transition-property: transform, border-color, background-color; transition-duration: 150ms; }
+.admin-step.featured { border-color: rgba(124,111,255,.38); background: linear-gradient(145deg, rgba(124,111,255,.11), rgba(20,20,29,.96) 55%); }
+.step-number { position: absolute; inset-inline-end: 13px; top: 12px; color: #343244; font-size: 24px; font-weight: 900; letter-spacing: -.05em; }
+.admin-step.featured .step-number { color: rgba(124,111,255,.28); }
+.step-icon { display: grid; place-items: center; width: 35px; height: 35px; margin-bottom: 24px; border: 1px solid #2d2c3c; border-radius: 10px; background: #101017; color: #aaa1ff; font-size: 13px; }
+.admin-step.featured .step-icon { border-color: rgba(124,111,255,.3); background: rgba(124,111,255,.13); }
+.admin-step > strong { font-size: 13px; }
+.admin-step > p { margin: 8px 0 18px; color: #858297; font-size: 10.5px; line-height: 1.55; }
+.step-action { display: inline-flex; align-items: center; gap: 6px; margin-top: auto; color: #9e96fa; font-size: 10px; font-weight: 800; }
+.step-action i { font-size: 8px; }
+.admin-tip { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 13px; align-items: center; margin-top: 12px; padding: 14px; border: 1px solid rgba(124,111,255,.27); border-radius: 12px; background: rgba(124,111,255,.07); }
+.tip-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(124,111,255,.13); color: #b1a8ff; }
+.admin-tip div > span { display: block; margin-bottom: 3px; color: #948bea; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.admin-tip strong { font-size: 11.5px; }
+.admin-tip p { margin: 3px 0 0; color: #89859e; font-size: 9.5px; line-height: 1.45; }
+.admin-tip button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 10px; border: 1px solid rgba(124,111,255,.27); border-radius: 8px; background: #111018; color: #aaa2ff; font-size: 9.5px; font-weight: 800; cursor: pointer; }
+
+.member-actions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.member-actions button { display: grid; grid-template-columns: 36px 1fr auto; gap: 12px; align-items: center; padding: 15px; border: 1px solid #242432; border-radius: 12px; background: #14141d; color: #aaa1ff; text-align: start; cursor: pointer; }
+.member-actions button > i:first-child { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: rgba(124,111,255,.11); }
+.member-actions strong,
+.member-actions small { display: block; }
+.member-actions strong { color: #dedbea; font-size: 12px; }
+.member-actions small { margin-top: 4px; color: #807d92; font-size: 10px; }
+
+.responsibility-section { border-top: 1px solid #1b1b25; }
+.responsibility-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(240px, .72fr); gap: 12px; }
+.responsibility-card,
+.shortcut-panel { min-width: 0; padding: 17px; border: 1px solid #242432; border-radius: 13px; background: #14141d; }
+.responsibility-card header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.responsibility-card header > span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; font-size: 12px; }
+.admin-card header > span { background: rgba(124,111,255,.12); color: #aaa1ff; }
+.team-card header > span { background: rgba(63,207,142,.1); color: #67dda1; }
+.responsibility-card header small,
+.responsibility-card header strong { display: block; }
+.responsibility-card header small { color: #79768a; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.responsibility-card header strong { margin-top: 3px; font-size: 12px; }
+.responsibility-card ul { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.responsibility-card li { display: flex; align-items: center; gap: 7px; color: #9693a8; font-size: 10.5px; }
+.responsibility-card li i { display: grid; place-items: center; width: 15px; height: 15px; flex: none; border-radius: 5px; background: rgba(63,207,142,.09); color: #5cd99d; font-size: 6px; }
+.shortcut-panel { display: flex; flex-direction: column; gap: 13px; }
+.shortcut-panel > div { display: flex; align-items: center; gap: 9px; }
+.shortcut-panel kbd { display: grid; place-items: center; width: 28px; height: 27px; flex: none; border: 1px solid #302f40; border-radius: 7px; background: #101017; color: #c8c4da; font-family: 'JetBrains Mono', monospace; font-size: 9px; box-shadow: inset 0 -2px rgba(0,0,0,.25); }
+.shortcut-panel strong,
+.shortcut-panel small { display: block; }
+.shortcut-panel strong { color: #c5c2d4; font-size: 9.5px; }
+.shortcut-panel small { margin-top: 2px; color: #747185; font-size: 8px; }
+
+.home-cta { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px; border: 1px solid rgba(124,111,255,.26); border-radius: 14px; background: radial-gradient(circle at 18% 0, rgba(124,111,255,.16), transparent 40%), #14141d; }
+.home-cta span,
+.home-cta strong { display: block; }
+.home-cta span { color: #928cae; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.home-cta strong { margin-top: 5px; font-size: 16px; }
+.home-cta button { flex: none; border: 1px solid var(--purple); background: var(--purple); color: #0a0a10; }
+
+@media (hover: hover) and (pointer: fine) {
+  .primary-button:hover,
+  .home-cta button:hover { transform: translateY(-1px); background: #8b80ff; }
+  .secondary-button:hover { transform: translateY(-1px); border-color: #414052; background: #191922; color: #e0ddec; }
+  .admin-step:hover { transform: translateY(-2px); border-color: #3a384d; background-color: #171720; }
+  .admin-step.featured:hover { border-color: rgba(124,111,255,.55); }
+}
+
+@keyframes scene-item-in {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes type-text {
+  from { opacity: .4; clip-path: inset(0 100% 0 0); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); }
+}
+@keyframes caret-blink { 50% { opacity: 0; } }
+@keyframes move-task {
+  0%, 24% { transform: translateX(0) rotate(0); }
+  48% { transform: translateX(54%) translateY(-7px) rotate(1deg); }
+  100% { transform: translateX(calc(100% + 8px)) translateY(0) rotate(0); }
+}
+@keyframes move-pointer {
+  0%, 24% { transform: translateX(0) translateY(0); }
+  100% { transform: translateX(122px) translateY(-4px); }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes grow-bar {
+  from { opacity: .4; transform: scaleY(.08); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+
+@media (max-width: 980px) {
+  .home-hero { grid-template-columns: 1fr; min-height: auto; }
+  .hero-copy { max-width: 720px; }
+  .explainer-card { width: 100%; max-width: 680px; }
+  .admin-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .responsibility-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shortcut-panel { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); }
+  .shortcut-panel > .section-kicker { grid-column: 1 / -1; }
+}
+
+@media (max-width: 640px) {
+  .home-page { padding-inline: 16px; }
+  .home-hero { gap: 28px; padding-top: 8px; }
+  .hero-copy h1 { font-size: 38px; }
+  .motion-stage { height: 286px; }
+  .motion-scene { padding: 14px; }
+  .mock-modal { width: 90%; }
+  .assignment-card { width: 92%; }
+  .moving-task { inset-inline-start: 24px; top: 78px; width: calc((100% - 62px) / 3); padding: 7px; }
+  .drag-pointer { display: none; }
+  .scene-tabs button { justify-content: center; }
+  .scene-tabs button { font-size: 0; }
+  .scene-tabs button span { font-size: 7px; }
+  .scene-copy { grid-template-columns: 48px 1fr; }
+  .section-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .admin-steps,
+  .responsibility-grid,
+  .member-actions { grid-template-columns: 1fr; }
+  .admin-step { min-height: 220px; }
+  .admin-tip { grid-template-columns: 38px minmax(0,1fr); }
+  .admin-tip button { grid-column: 1 / -1; justify-content: center; }
+  .shortcut-panel { grid-column: auto; grid-template-columns: 1fr; }
+  .shortcut-panel > .section-kicker { grid-column: auto; }
+  .home-cta { align-items: flex-start; flex-direction: column; }
+  .home-cta button { width: 100%; }
+  .person-options { grid-template-columns: 1fr; }
+  .person-option:last-child { display: none; }
+  .dashboard-bottom { grid-template-columns: 1fr; }
+  .mini-alert { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-item,
+  .typing-field span,
+  .typing-field i,
+  .moving-task,
+  .status-toast,
+  .chart-bars span { animation: none; }
+  .drag-pointer { display: none; }
+}
+</style>

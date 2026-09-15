@@ -88,7 +88,7 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
 <template>
   <div style="min-height:100vh;">
 
-    <div ref="headerBarEl" style="position:sticky; top:0; z-index:40; background:#0b0b11;">
+    <div ref="headerBarEl" style="position:sticky; top:0; z-index:40; background:#0b0b11; border-bottom:1px solid #1f1f2b;">
       <div style="max-width:1180px; margin:0 auto;">
         <AppHeader />
       </div>
