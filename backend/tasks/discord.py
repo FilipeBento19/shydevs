@@ -6,19 +6,32 @@ No-op if DISCORD_WEBHOOK_URL isn't set, and the actual HTTP call is fired
 from a background thread so a slow/unreachable Discord never delays the API
 response that triggered it.
 """
+import json
 import os
 import threading
+from pathlib import Path
 
 import requests
+from django.conf import settings
 
 # Components V2 component type IDs (Discord message components API).
 CONTAINER = 17
 TEXT_DISPLAY = 10
 SEPARATOR = 14
+MEDIA_GALLERY = 12
 
 # A message built from components (instead of content/embeds) must carry
 # this flag, and in exchange cannot also set `content` or `embeds`.
 IS_COMPONENTS_V2 = 1 << 15
+
+# One banner image per event type, named after it — drop a PNG in here to
+# have it show up automatically, no code change needed.
+BANNERS_DIR = Path(settings.BASE_DIR) / 'static' / 'webhook_banners'
+
+
+def _banner_path(event_type):
+    path = BANNERS_DIR / f'{event_type}.png'
+    return path if path.is_file() else None
 
 COLORS = {
     'task_created': 0x3fcf8e,
@@ -112,7 +125,7 @@ def _text(content):
     return {'type': TEXT_DISPLAY, 'content': content}
 
 
-def build_container(activity, mention_line=None):
+def build_container(activity, mention_line=None, banner_filename=None):
     """A Components V2 Container: a card holding text blocks — the
     Components V2 equivalent of an embed's title + fields."""
     task = activity.task
@@ -130,6 +143,11 @@ def build_container(activity, mention_line=None):
     project_name = task.project.name if task and task.project_id else 'ShyDevs'
 
     children = []
+    if banner_filename:
+        children.append({
+            'type': MEDIA_GALLERY,
+            'items': [{'media': {'url': f'attachment://{banner_filename}'}}],
+        })
     if mention_line:
         children.append(_text(mention_line))
     children.append(_text(title))
@@ -144,12 +162,22 @@ def build_container(activity, mention_line=None):
     }
 
 
-def _post(webhook_url, payload):
+def _post(webhook_url, payload, banner_path=None):
     try:
         # Discord's incoming-webhook endpoint silently rejects a Components V2
         # payload ("Cannot send an empty message") unless this query param is
         # present — distinct from the flag on the payload itself.
-        requests.post(f'{webhook_url}?with_components=true', json=payload, timeout=5)
+        url = f'{webhook_url}?with_components=true'
+        if banner_path:
+            with open(banner_path, 'rb') as f:
+                requests.post(
+                    url,
+                    data={'payload_json': json.dumps(payload)},
+                    files={'files[0]': (banner_path.name, f, 'image/png')},
+                    timeout=10,
+                )
+        else:
+            requests.post(url, json=payload, timeout=5)
     except requests.RequestException:
         pass  # best-effort — a Discord hiccup should never break the app
 
@@ -170,11 +198,14 @@ def notify(activity):
     mention_line = f'<@{discord_id}>' if discord_id else None
     allowed_mentions = {'parse': [], 'users': [discord_id]} if discord_id else {'parse': []}
 
+    banner_path = _banner_path(activity.event_type)
     payload = {
         'username': 'ShyDevs',
         'flags': IS_COMPONENTS_V2,
-        'components': [build_container(activity, mention_line)],
+        'components': [build_container(activity, mention_line, banner_path and banner_path.name)],
         'allowed_mentions': allowed_mentions,
     }
+    if banner_path:
+        payload['attachments'] = [{'id': 0, 'filename': banner_path.name}]
 
-    threading.Thread(target=_post, args=(webhook_url, payload), daemon=True).start()
+    threading.Thread(target=_post, args=(webhook_url, payload, banner_path), daemon=True).start()
