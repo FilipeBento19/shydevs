@@ -139,6 +139,11 @@ const prioFilterOptions = [
 ]
 
 // ---- selection & bulk actions ----
+function canSelect(task) {
+  return canEdit.value || task.assignee === auth.state.person?.id
+}
+const selectableTasks = computed(() => filteredTasks.value.filter(canSelect))
+
 function isSelectedAny() {
   return selectedIds.value.length > 0
 }
@@ -148,14 +153,14 @@ function toggleSelect(id) {
   else selectedIds.value.push(id)
 }
 const allSelected = computed(
-  () => filteredTasks.value.length > 0 && filteredTasks.value.every((t) => selectedIds.value.includes(t.id))
+  () => selectableTasks.value.length > 0 && selectableTasks.value.every((t) => selectedIds.value.includes(t.id))
 )
 function toggleSelectAll() {
   if (allSelected.value) {
-    const ids = new Set(filteredTasks.value.map((t) => t.id))
+    const ids = new Set(selectableTasks.value.map((t) => t.id))
     selectedIds.value = selectedIds.value.filter((id) => !ids.has(id))
   } else {
-    selectedIds.value = [...new Set([...selectedIds.value, ...filteredTasks.value.map((t) => t.id)])]
+    selectedIds.value = [...new Set([...selectedIds.value, ...selectableTasks.value.map((t) => t.id)])]
   }
 }
 function clearSelection() {
@@ -163,7 +168,6 @@ function clearSelection() {
 }
 
 async function bulkSetStatus(status) {
-  if (!canEdit.value) return
   try {
     await api.bulkUpdateTasks(selectedIds.value, { status })
     tasks.value = tasks.value.map((t) => (selectedIds.value.includes(t.id) ? { ...t, status } : t))
@@ -260,11 +264,11 @@ async function onKanbanStatusChange(task, status) {
       </div>
     </div>
 
-    <div v-if="canEdit && isSelectedAny() && boardMode === 'tabela'" style="margin:12px 26px 0; background:rgba(124,111,255,.10); border:1px solid rgba(124,111,255,.3); border-radius:10px; padding:9px 12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+    <div v-if="isSelectedAny() && boardMode === 'tabela'" style="margin:12px 26px 0; background:rgba(124,111,255,.10); border:1px solid rgba(124,111,255,.3); border-radius:10px; padding:9px 12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       <span style="font-size:12px; font-weight:700; color:#cfc9ff;">{{ selectedIds.length }} selecionada(s)</span>
       <button @click="bulkSetStatus('Em andamento')" style="border:1px solid #26263a; background:#0e0e14; color:#c7c5dc; border-radius:7px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer;">Em andamento</button>
-      <button @click="bulkSetStatus('Concluída')" style="border:1px solid #26263a; background:#0e0e14; color:#c7c5dc; border-radius:7px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer;">Concluir</button>
-      <button @click="bulkDelete" style="border:1px solid rgba(224,79,95,.4); background:transparent; color:#ff8f98; border-radius:7px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer;">Excluir</button>
+      <button v-if="canEdit" @click="bulkSetStatus('Concluída')" style="border:1px solid #26263a; background:#0e0e14; color:#c7c5dc; border-radius:7px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer;">Concluir</button>
+      <button v-if="canEdit" @click="bulkDelete" style="border:1px solid rgba(224,79,95,.4); background:transparent; color:#ff8f98; border-radius:7px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer;">Excluir</button>
       <button @click="clearSelection" style="margin-left:auto; border:none; background:transparent; color:#8b899f; font-size:11.5px; cursor:pointer;">Limpar seleção</button>
     </div>
 

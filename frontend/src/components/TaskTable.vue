@@ -1,9 +1,11 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { listEnter, listLeave } from '../motion'
+import { auth } from '../auth'
 import { isLate, formatDue, prioBadge, statusBadge, roleIcon } from '../utils'
 import mascot from '../assets/mascot.png'
 import AssigneeAvatar from './AssigneeAvatar.vue'
+import Checkbox from './Checkbox.vue'
 
 const props = defineProps({
   tasks: { type: Array, default: () => [] },
@@ -23,6 +25,9 @@ function roleColor(name) {
 function isSelected(id) {
   return props.selectedIds.includes(id)
 }
+function canSelect(task) {
+  return props.canEdit || task.assignee === auth.state.person?.id
+}
 function openTask(task) {
   router.push({ name: 'task', params: { id: task.id } })
 }
@@ -33,9 +38,8 @@ function openTask(task) {
     <div class="nice-scroll" style="overflow-x:auto;">
       <div style="min-width:940px;">
         <div style="display:grid; grid-template-columns:34px minmax(0,1fr) 128px 158px 150px 96px 126px; gap:10px; padding:11px 14px; background:#101017; border-bottom:1px solid #1f1f2b; font-size:10.5px; font-weight:700; letter-spacing:.06em; color:#8b899f;">
-          <div>
-            <label for="select-all-tasks" class="sr-only">Selecionar todas as tarefas</label>
-            <input v-if="canEdit" id="select-all-tasks" type="checkbox" :checked="allSelected" @change="$emit('toggle-select-all')" style="width:13px; height:13px; accent-color:#7c6fff; cursor:pointer;" />
+          <div v-if="auth.isLoggedIn">
+            <Checkbox :model-value="allSelected" @update:model-value="$emit('toggle-select-all')" aria-label="Selecionar todas as tarefas" />
           </div>
           <div>TAREFA &amp; DESCRIÇÃO</div><div>CARGO</div><div>RESPONSÁVEL</div><div>PRAZO</div><div>PRIORIDADE</div><div>STATUS</div>
         </div>
@@ -51,9 +55,9 @@ function openTask(task) {
             role="button" tabindex="0" :aria-label="`Abrir tarefa ${t.code}: ${t.title}`"
             @keydown.enter="openTask(t)" @keydown.space.prevent="openTask(t)"
             :style="{ display: 'grid', gridTemplateColumns: '34px minmax(0,1fr) 128px 158px 150px 96px 126px', gap: '10px', padding: '13px 14px', borderBottom: '1px solid #1a1a25', alignItems: 'center', cursor: 'pointer', background: isSelected(t.id) ? 'rgba(124,111,255,.06)' : 'transparent' }">
-            <div @click.stop>
-              <label :for="`select-task-${t.id}`" class="sr-only">Selecionar tarefa {{ t.code }}</label>
-              <input v-if="canEdit" :id="`select-task-${t.id}`" type="checkbox" :checked="isSelected(t.id)" @change="$emit('toggle-select', t.id)" style="width:15px; height:15px; accent-color:#7c6fff; cursor:pointer;" />
+            <div v-if="auth.isLoggedIn" @click.stop>
+              <Checkbox :model-value="isSelected(t.id)" :disabled="!canSelect(t)" @update:model-value="$emit('toggle-select', t.id)"
+                :aria-label="canSelect(t) ? `Selecionar tarefa ${t.code}` : `Tarefa ${t.code} não é sua`" />
             </div>
             <div style="min-width:0;">
               <div style="display:flex; align-items:center; gap:8px;">

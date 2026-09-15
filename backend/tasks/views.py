@@ -142,6 +142,11 @@ class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [TaskPermission]
 
+    def get_permissions(self):
+        if self.action == 'bulk_update':
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
         if not getattr(request.user, 'is_admin', False):
@@ -270,6 +275,25 @@ class TaskViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Informe ids e ao menos um campo.'}, status=400)
 
         qs = Task.objects.filter(id__in=ids)
+        if not getattr(request.user, 'is_admin', False):
+            fields = {'status': fields['status']} if 'status' in fields else {}
+            if not fields:
+                return Response(
+                    {'detail': 'Você só pode alterar o status das suas próprias tarefas.'},
+                    status=http_status.HTTP_403_FORBIDDEN,
+                )
+            if fields['status'] == Status.CONCLUIDA:
+                return Response(
+                    {'detail': 'Para concluir uma tarefa, adicione a nota de conclusão nela individualmente.'},
+                    status=400,
+                )
+            qs = qs.filter(assignee_id=request.user.id)
+            if qs.count() != len(set(ids)):
+                return Response(
+                    {'detail': 'Algumas tarefas selecionadas não são suas.'},
+                    status=http_status.HTTP_403_FORBIDDEN,
+                )
+
         updated = []
         for task in qs:
             for k, v in fields.items():
