@@ -130,15 +130,22 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # settings are set: django-cloudinary-storage's management commands still read the
 # old-style attributes directly and error out if they're absent.
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Media files: Cloudinary in production (persists across deploys), local disk in dev.
+# 'default' must always be present in STORAGES (Django 4.2+ resolves default_storage
+# from it), so we start from the local filesystem backend and only swap it for
+# Cloudinary when credentials are actually configured.
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
 STORAGES = {
+    'default': {
+        'BACKEND': DEFAULT_FILE_STORAGE,
+    },
     'staticfiles': {
         'BACKEND': STATICFILES_STORAGE,
     },
 }
-
-# Media files: Cloudinary in production (persists across deploys), local disk in dev.
-MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
 if USE_CLOUDINARY:
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
     STORAGES['default'] = {'BACKEND': DEFAULT_FILE_STORAGE}
