@@ -72,7 +72,6 @@ const ADMIN_STEPS = [
 ]
 
 const activeScene = ref(0)
-const playing = ref(!reduceMotion)
 const heroEl = ref(null)
 const stepsEl = ref(null)
 let sceneTimer = null
@@ -84,36 +83,15 @@ function clearSceneTimer() {
 
 function scheduleScene() {
   clearSceneTimer()
-  if (!playing.value) return
+  if (reduceMotion) return
   sceneTimer = window.setTimeout(() => {
-    if (activeScene.value >= SCENES.length - 1) {
-      playing.value = false
-      return
-    }
-    activeScene.value += 1
+    activeScene.value = (activeScene.value + 1) % SCENES.length
     scheduleScene()
   }, 4200)
 }
 
 function selectScene(index) {
   activeScene.value = index
-  scheduleScene()
-}
-
-function togglePlayback() {
-  if (playing.value) {
-    playing.value = false
-    clearSceneTimer()
-    return
-  }
-  if (activeScene.value >= SCENES.length - 1) activeScene.value = 0
-  playing.value = true
-  scheduleScene()
-}
-
-function replay() {
-  activeScene.value = 0
-  playing.value = !reduceMotion
   scheduleScene()
 }
 
@@ -186,17 +164,9 @@ onUnmounted(clearSceneTimer)
             <span class="brand-mark"><i class="fi fi-sr-clapperboard-play" aria-hidden="true"></i></span>
             <div><strong>Como funciona</strong><span>Guia visual · 4 passos</span></div>
           </div>
-          <div class="player-controls">
-            <button type="button" :aria-label="playing ? 'Pausar animação' : 'Reproduzir animação'" @click="togglePlayback">
-              <i :class="`fi ${playing ? 'fi-sr-pause' : 'fi-sr-play'}`" aria-hidden="true"></i>
-            </button>
-            <button type="button" aria-label="Reiniciar animação" @click="replay">
-              <i class="fi fi-sr-rotate-right" aria-hidden="true"></i>
-            </button>
-          </div>
         </header>
 
-        <div class="motion-stage" :class="{ 'is-paused': !playing }">
+        <div class="motion-stage">
           <div class="stage-glow" aria-hidden="true"></div>
           <Transition mode="out-in" :css="false" @enter="sceneEnter" @leave="sceneLeave">
             <div :key="activeScene" class="motion-scene">
@@ -398,17 +368,7 @@ button { font: inherit; }
 .explainer-brand div > span { display: block; }
 .explainer-brand strong { font-size: 11.5px; }
 .explainer-brand div span { margin-top: 2px; color: #706e82; font-size: 8.5px; }
-.player-controls { display: flex; gap: 5px; }
-.player-controls button { display: grid; place-items: center; width: 29px; height: 29px; border: 1px solid #292837; border-radius: 8px; background: #0e0e14; color: #89869e; font-size: 9px; cursor: pointer; transition-property: border-color, color, background-color; transition-duration: 150ms; }
-.player-controls button:hover { border-color: #413e5b; background: #171620; color: #c3bcff; }
-
 .motion-stage { position: relative; height: 322px; overflow: hidden; background-color: #0b0b10; background-image: linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px); background-size: 24px 24px; }
-.motion-stage.is-paused .scene-item,
-.motion-stage.is-paused .typing-field i,
-.motion-stage.is-paused .moving-task,
-.motion-stage.is-paused .drag-pointer,
-.motion-stage.is-paused .status-toast,
-.motion-stage.is-paused .chart-bars span { animation-play-state: paused; }
 .stage-glow { position: absolute; inset: -35% 5% auto; height: 210px; border-radius: 50%; background: rgba(124,111,255,.11); filter: blur(70px); pointer-events: none; }
 .motion-scene { position: absolute; inset: 0; padding: 20px; }
 .scene-item { animation: scene-item-in .6s var(--ease-out) both; }
