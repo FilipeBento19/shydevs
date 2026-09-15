@@ -1,4 +1,7 @@
-const BASE = '/api'
+// In dev, Vite proxies '/api' to the local Django server (see vite.config.js).
+// In production (Vercel), set VITE_API_BASE_URL to the deployed backend, e.g.
+// https://shydevs-backend.onrender.com/api
+const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 
 function authHeaders() {
   const token = localStorage.getItem('shydevs_token')
