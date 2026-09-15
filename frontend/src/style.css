@@ -1,0 +1,38 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #08080d;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: #8a7dff;
+  text-decoration: none;
+}
+a:hover {
+  color: #a89cff;
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+  color-scheme: dark;
+}
+
+::placeholder {
+  color: #6f6d87;
+}
+
+button {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.fi {
+  line-height: 1;
+}

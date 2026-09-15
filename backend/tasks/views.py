@@ -1,0 +1,308 @@
+from django.db.models import Q
+from django.utils import timezone
+from rest_framework import permissions, status as http_status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .models import (
+    Activity, Attachment, AuthToken, Person, Priority, ProjectSettings, Role, ROLE_COLORS, Status, Subtask, Task,
+)
+from .serializers import (
+    ActivitySerializer, AttachmentSerializer, PersonSerializer, SubtaskSerializer, TaskSerializer,
+)
+
+
+class IsAdminOrReadOnly(permissions.BasePermission):
+    """Anyone can read; only the admin person may create/update/delete."""
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        user = request.user
+        return bool(user and getattr(user, 'is_authenticated', False) and getattr(user, 'is_admin', False))
+
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        name = (request.data.get('name') or '').strip()
+        password = request.data.get('password') or ''
+        try:
+            person = Person.objects.get(name__iexact=name)
+        except Person.DoesNotExist:
+            return Response({'detail': 'Credenciais inválidas.'}, status=http_status.HTTP_401_UNAUTHORIZED)
+
+        if not person.check_password(password):
+            return Response({'detail': 'Credenciais inválidas.'}, status=http_status.HTTP_401_UNAUTHORIZED)
+
+        token, _ = AuthToken.objects.get_or_create(
+            person=person, defaults={'key': AuthToken.generate_key()}
+        )
+        return Response({'token': token.key, 'person': PersonSerializer(person).data})
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        AuthToken.objects.filter(person=request.user).delete()
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
+
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(PersonSerializer(request.user).data)
+
+
+class PersonViewSet(viewsets.ModelViewSet):
+    queryset = Person.objects.all().order_by('name')
+    serializer_class = PersonSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+    def _would_remove_last_admin(self, instance, validated_data):
+        becoming_non_admin = 'is_admin' in validated_data and not validated_data['is_admin']
+        return (
+            instance.is_admin and becoming_non_admin
+            and Person.objects.filter(is_admin=True).exclude(pk=instance.pk).count() == 0
+        )
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if self._would_remove_last_admin(instance, request.data):
+            return Response({'detail': 'Precisa existir pelo menos um administrador.'}, status=400)
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if self._would_remove_last_admin(instance, request.data):
+            return Response({'detail': 'Precisa existir pelo menos um administrador.'}, status=400)
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.is_admin and Person.objects.filter(is_admin=True).exclude(pk=instance.pk).count() == 0:
+            return Response({'detail': 'Precisa existir pelo menos um administrador.'}, status=400)
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'])
+    def photo(self, request, pk=None):
+        person = self.get_object()
+        file = request.FILES.get('photo')
+        if not file:
+            return Response({'detail': 'Nenhum arquivo enviado.'}, status=400)
+        person.photo = file
+        person.save()
+        return Response(PersonSerializer(person).data)
+
+
+class TaskViewSet(viewsets.ModelViewSet):
+    serializer_class = TaskSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        qs = Task.objects.select_related('assignee').prefetch_related('subtasks', 'attachments').all()
+        params = self.request.query_params
+
+        role = params.get('role')
+        if role and role != 'Todos':
+            qs = qs.filter(role=role)
+
+        person = params.get('person')
+        if person and person != 'Todos':
+            qs = qs.filter(assignee__name=person)
+
+        priority = params.get('priority')
+        if priority and priority != 'Todas':
+            qs = qs.filter(priority=priority)
+
+        status_ = params.get('status')
+        if status_ == 'Atrasadas':
+            qs = qs.filter(due_date__lt=timezone.now().date()).exclude(status=Status.CONCLUIDA)
+        elif status_ and status_ != 'Todas':
+            qs = qs.filter(status=status_)
+
+        query = params.get('query')
+        if query:
+            qs = qs.filter(
+                Q(title__icontains=query) | Q(description__icontains=query) |
+                Q(assignee__name__icontains=query) | Q(role__icontains=query) |
+                Q(code__icontains=query)
+            )
+
+        return qs
+
+    def _actor(self):
+        user = self.request.user
+        return user if getattr(user, 'is_authenticated', False) else None
+
+    @action(detail=False, methods=['get'])
+    def roles(self, request):
+        data = [{'name': r.value, 'color': ROLE_COLORS[r]} for r in Role]
+        return Response(data)
+
+    @action(detail=False, methods=['get'])
+    def balance(self, request):
+        best = None
+        for role in Role:
+            members = Person.objects.filter(role=role)
+            if members.count() < 2:
+                continue
+            load = []
+            for m in members:
+                n = m.tasks.exclude(status=Status.CONCLUIDA).count()
+                load.append({'name': m.name, 'n': n})
+            load.sort(key=lambda x: -x['n'])
+            gap = load[0]['n'] - load[-1]['n']
+            if best is None or gap > best['gap']:
+                best = {'gap': gap, 'role': role.value, 'top': load[0], 'low': load[-1]}
+
+        if best and best['gap'] > 0:
+            text = (
+                f"{best['top']['name']} está com {best['top']['n']} entregas abertas de "
+                f"{best['role']} enquanto {best['low']['name']} está com {best['low']['n']}. "
+                f"Considere transferir 1 tarefa para manter o cargo equilibrado."
+            )
+            role_name = best['role']
+        else:
+            text = 'Todos os cargos com mais de uma pessoa estão com a carga equilibrada no momento.'
+            role_name = 'Equipe'
+
+        return Response({'role': role_name, 'text': text})
+
+    @action(detail=False, methods=['get'])
+    def dashboard(self, request):
+        tasks = list(Task.objects.select_related('assignee').all())
+        total = len(tasks)
+        by_status = {s.value: sum(1 for t in tasks if t.status == s.value) for s in Status}
+        by_role = {r.value: sum(1 for t in tasks if t.role == r.value) for r in Role}
+        by_priority = {p.value: sum(1 for t in tasks if t.priority == p.value) for p in Priority}
+
+        overdue = sum(1 for t in tasks if t.due_date and t.due_date < timezone.now().date() and t.status != Status.CONCLUIDA)
+
+        people = list(Person.objects.all())
+        workload = [
+            {
+                'name': p.name,
+                'role': p.role,
+                'open': sum(1 for t in tasks if t.assignee_id == p.id and t.status != Status.CONCLUIDA),
+                'done': sum(1 for t in tasks if t.assignee_id == p.id and t.status == Status.CONCLUIDA),
+            }
+            for p in people
+        ]
+
+        return Response({
+            'total': total,
+            'by_status': by_status,
+            'by_role': by_role,
+            'by_priority': by_priority,
+            'overdue': overdue,
+            'workload': workload,
+        })
+
+    @action(detail=False, methods=['post'])
+    def bulk_update(self, request):
+        ids = request.data.get('ids') or []
+        fields = request.data.get('fields') or {}
+        allowed = {'status', 'priority', 'assignee', 'checked'}
+        fields = {k: v for k, v in fields.items() if k in allowed}
+        if not ids or not fields:
+            return Response({'detail': 'Informe ids e ao menos um campo.'}, status=400)
+
+        qs = Task.objects.filter(id__in=ids)
+        updated = []
+        for task in qs:
+            for k, v in fields.items():
+                setattr(task, k, v)
+            task._activity_actor = self._actor()
+            task.save()
+            updated.append(task.id)
+        return Response({'updated': updated})
+
+    @action(detail=False, methods=['delete'], url_path='bulk-delete')
+    def bulk_delete(self, request):
+        ids = request.data.get('ids') or []
+        deleted, _ = Task.objects.filter(id__in=ids).delete()
+        return Response({'deleted': deleted})
+
+
+class SubtaskViewSet(viewsets.ModelViewSet):
+    serializer_class = SubtaskSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        qs = Subtask.objects.all()
+        task_id = self.request.query_params.get('task')
+        if task_id:
+            qs = qs.filter(task_id=task_id)
+        return qs
+
+
+class ActivityViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = ActivitySerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        qs = Activity.objects.select_related('actor', 'task').all()
+        task_id = self.request.query_params.get('task')
+        if task_id:
+            qs = qs.filter(task_id=task_id)
+        return qs[:200]
+
+
+class IsAuthenticatedOrReadOnly(permissions.BasePermission):
+    """Anyone can read; any logged-in person may create (proof-of-work uploads).
+    Only the uploader or an admin may delete."""
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return bool(request.user and getattr(request.user, 'is_authenticated', False))
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        user = request.user
+        if getattr(user, 'is_admin', False):
+            return True
+        return obj.uploaded_by_id == getattr(user, 'id', None)
+
+
+class AttachmentViewSet(viewsets.ModelViewSet):
+    serializer_class = AttachmentSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        qs = Attachment.objects.select_related('uploaded_by').all()
+        task_id = self.request.query_params.get('task')
+        if task_id:
+            qs = qs.filter(task_id=task_id)
+        return qs
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(uploaded_by=user if getattr(user, 'is_authenticated', False) else None)
+
+
+class ProjectSettingsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({'name': ProjectSettings.load().name})
+
+    def patch(self, request):
+        user = request.user
+        if not (user and getattr(user, 'is_authenticated', False) and getattr(user, 'is_admin', False)):
+            return Response({'detail': 'Apenas administradores.'}, status=http_status.HTTP_403_FORBIDDEN)
+        name = (request.data.get('name') or '').strip()
+        if not name:
+            return Response({'detail': 'Nome inválido.'}, status=400)
+        settings_obj = ProjectSettings.load()
+        settings_obj.name = name[:120]
+        settings_obj.save()
+        return Response({'name': settings_obj.name})

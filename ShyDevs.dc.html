@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#eceaf4; font-family:'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+  a { color:#4f46e5; text-decoration:none; }
+  a:hover { color:#3b32c4; }
+  input, select, textarea, button { font-family:inherit; }
+  ::placeholder { color:#9a9ab0; }
+</style>
+</helmet>
+<div style="min-height:100vh; padding:18px; box-sizing:border-box; display:flex; justify-content:center;">
+<div style="width:100%; max-width:1180px; background:#f7f7fb; border:1px solid #dedce9; border-radius:14px; overflow:hidden; box-shadow:0 18px 50px rgba(28,25,64,.10);">
+
+  <div style="display:flex; align-items:center; gap:14px; padding:10px 16px; background:#fff; border-bottom:1px solid #e9e7f2;">
+    <div style="display:flex; align-items:center; gap:9px; padding-right:4px; flex:none; white-space:nowrap;">
+      <div style="width:26px; height:26px; border-radius:8px; background:#4f46e5; color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800;">S</div>
+      <span style="font-size:15px; font-weight:800; color:#17172b; letter-spacing:-.01em;">ShyDevs</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:6px; background:#f4f3f9; border:1px solid #e9e7f2; border-radius:8px; padding:5px 10px; font-size:12.5px; font-weight:600; color:#4a4a63; flex:none; white-space:nowrap;">
+      <span style="width:7px; height:7px; border-radius:50%; background:#4f46e5;"></span>Projeto Principal
+    </div>
+    <div style="display:flex; gap:2px; margin-left:4px; flex:none; white-space:nowrap;">
+      <div style="padding:7px 12px; border-radius:8px; background:#eef0ff; color:#3b32c4; font-size:12.5px; font-weight:700;">Quadro de Tarefas</div>
+      <div style="padding:7px 12px; border-radius:8px; color:#6b6b85; font-size:12.5px; font-weight:600;" style-hover="background:#f4f3f9;">Histórico</div>
+      <div style="padding:7px 12px; border-radius:8px; color:#6b6b85; font-size:12.5px; font-weight:600;" style-hover="background:#f4f3f9;">Configurações</div>
+    </div>
+    <div style="flex:1; min-width:0;"></div>
+    <div style="display:flex; align-items:center; gap:8px; background:#f4f3f9; border:1px solid #e9e7f2; border-radius:9px; padding:7px 10px; flex:1 1 130px; min-width:0; max-width:230px;">
+      <span style="color:#9a9ab0; font-size:12px;">⌕</span>
+      <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Buscar tarefas, cargos…" style="border:none; background:transparent; outline:none; font-size:12.5px; color:#17172b; width:100%;" />
+    </div>
+    <button onClick="{{ openModal }}" style="display:flex; align-items:center; gap:7px; background:#4f46e5; color:#fff; border:none; border-radius:9px; padding:9px 14px; font-size:12.5px; font-weight:700; cursor:pointer; flex:none; white-space:nowrap;" style-hover="background:#3f37cf;">+ Atribuir Tarefa</button>
+    <div style="width:28px; height:28px; flex:none; border-radius:50%; background:#dcd9ee; color:#4f46e5; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800;">SM</div>
+  </div>
+
+  <div style="padding:22px 26px 0;">
+    <div style="display:flex; align-items:center; gap:8px; font-size:11.5px; font-weight:600; color:#7a7a95; margin-bottom:9px;">
+      <span style="width:6px; height:6px; border-radius:50%; background:#4f46e5;"></span>ShyDevs · Sprint 24.4
+    </div>
+    <div style="display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:260px;">
+        <h1 style="margin:0 0 7px; font-size:27px; font-weight:800; color:#17172b; letter-spacing:-.025em;">Atribuição de Tarefas</h1>
+        <p style="margin:0; font-size:13px; line-height:1.5; color:#6b6b85; max-width:520px; text-wrap:pretty;">Distribua demandas por cargo e mantenha cada especialidade da equipe com um fluxo equilibrado.</p>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <div style="display:flex; background:#fff; border:1px solid #e3e1ee; border-radius:9px; padding:3px;">
+          <button onClick="{{ setTabela }}" style="{{ modoTabelaStyle }}">Modo Tabela</button>
+          <button onClick="{{ setCards }}" style="{{ modoCardsStyle }}">Modo Cards</button>
+        </div>
+        <button onClick="{{ openModal }}" style="background:#4f46e5; color:#fff; border:none; border-radius:9px; padding:9px 14px; font-size:12.5px; font-weight:700; cursor:pointer;" style-hover="background:#3f37cf;">+ Atribuir tarefa</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:20px 26px 0;">
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <button onClick="{{ onRoleAll }}" style="{{ roleAllStyle }}">Todos os cargos <span style="opacity:.6;">{{ total }}</span></button>
+      <sc-for list="{{ roleChips }}" as="r" hint-placeholder-count="6">
+        <button onClick="{{ r.onClick }}" style="{{ r.style }}">
+          <span style="width:7px; height:7px; border-radius:50%; background:{{ r.color }};"></span>
+          {{ r.name }} <span style="opacity:.6;">{{ r.count }}</span>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="padding:16px 26px 0;">
+    <div style="background:#fff; border:1px solid #e9e7f2; border-radius:12px; padding:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <div style="flex:1; min-width:210px; display:flex; align-items:center; gap:8px; background:#f7f7fb; border:1px solid #e9e7f2; border-radius:9px; padding:9px 12px;">
+        <span style="color:#9a9ab0; font-size:12px;">⌕</span>
+        <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Buscar tarefa por título, cargo, descrição ou responsável…" style="border:none; background:transparent; outline:none; font-size:12.5px; color:#17172b; width:100%;" />
+      </div>
+      <select value="{{ person }}" onChange="{{ onPerson }}" style="border:1px solid #e3e1ee; background:#fff; border-radius:9px; padding:9px 11px; font-size:12.5px; font-weight:600; color:#4a4a63; outline:none; cursor:pointer;">
+        <option value="Todos">Todos os responsáveis</option>
+        <sc-for list="{{ people }}" as="p" hint-placeholder-count="4">
+          <option value="{{ p.name }}">{{ p.name }}</option>
+        </sc-for>
+      </select>
+      <select value="{{ prio }}" onChange="{{ onPrio }}" style="border:1px solid #e3e1ee; background:#fff; border-radius:9px; padding:9px 11px; font-size:12.5px; font-weight:600; color:#4a4a63; outline:none; cursor:pointer;">
+        <option value="Todas">Prioridade: Todas</option>
+        <option value="Alta">Prioridade: Alta</option>
+        <option value="Média">Prioridade: Média</option>
+        <option value="Baixa">Prioridade: Baixa</option>
+      </select>
+      <div style="border:1px solid #e3e1ee; background:#fff; border-radius:9px; padding:9px 11px; font-size:12.5px; font-weight:600; color:#4a4a63;">Prazo mais próximo ⇅</div>
+    </div>
+  </div>
+
+  <div style="padding:14px 26px 0; display:flex; gap:7px; flex-wrap:wrap;">
+    <sc-for list="{{ statusTabs }}" as="t" hint-placeholder-count="5">
+      <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }} <span style="opacity:.6;">{{ t.count }}</span></button>
+    </sc-for>
+  </div>
+
+  <div style="padding:18px 26px 0; display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <div style="font-size:13px; font-weight:700; color:#17172b;">Demandas Selecionadas <span style="font-weight:500; color:#8a8aa3; font-size:11.5px;">Exibindo {{ shownCount }} de {{ total }} tarefas</span></div>
+    <div style="font-size:11.5px; font-weight:600; color:#8a8aa3;">↻ Sincronizado há 2 min</div>
+  </div>
+
+  <div style="padding:10px 26px 0;">
+    <div style="background:#fff; border:1px solid #e9e7f2; border-radius:12px; overflow:hidden;">
+      <div style="overflow-x:auto;">
+        <div style="min-width:940px;">
+          <div style="display:grid; grid-template-columns:34px minmax(0,1fr) 128px 158px 150px 96px 126px 52px; gap:10px; padding:11px 14px; background:#fbfbfd; border-bottom:1px solid #eeecf6; font-size:10.5px; font-weight:700; letter-spacing:.06em; color:#8a8aa3;">
+            <div>☐</div><div>TAREFA &amp; DESCRIÇÃO</div><div>CARGO</div><div>RESPONSÁVEL</div><div>PRAZO</div><div>PRIORIDADE</div><div>STATUS</div><div>AÇÕES</div>
+          </div>
+          <sc-for list="{{ rows }}" as="t" hint-placeholder-count="8">
+            <div style="display:grid; grid-template-columns:34px minmax(0,1fr) 128px 158px 150px 96px 126px 52px; gap:10px; padding:13px 14px; border-bottom:1px solid #f2f1f8; align-items:center;" style-hover="background:#fafaff;">
+              <div><input type="checkbox" checked="{{ t.checked }}" onChange="{{ t.onToggle }}" style="width:15px; height:15px; accent-color:#4f46e5; cursor:pointer;" /></div>
+              <div style="min-width:0;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-family:'JetBrains Mono', monospace; font-size:10.5px; color:#9a9ab0;">{{ t.id }}</span>
+                  <span style="font-size:13px; font-weight:700; color:#17172b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.title }}</span>
+                </div>
+                <div style="font-size:11.5px; color:#8a8aa3; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.desc }}</div>
+              </div>
+              <div><span style="{{ t.roleStyle }}">{{ t.role }}</span></div>
+              <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                <span style="{{ t.avatarStyle }}">{{ t.initials }}</span>
+                <span style="font-size:12px; font-weight:600; color:#3d3d55; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.person }}</span>
+              </div>
+              <div style="font-size:11.5px; font-weight:600; {{ t.dueColor }}">{{ t.due }}</div>
+              <div><span style="{{ t.prioStyle }}">{{ t.prio }}</span></div>
+              <div><span style="{{ t.statusStyle }}">{{ t.status }}</span></div>
+              <div style="color:#b3b3c6; font-weight:700; cursor:pointer;">···</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ showBalance }}" hint-placeholder-val="{{ true }}">
+    <div style="padding:18px 26px 26px;">
+      <div style="background:#f1f0fe; border:1px solid #ddd9fa; border-radius:12px; padding:14px 16px; display:flex; gap:13px; align-items:center; flex-wrap:wrap;">
+        <div style="width:30px; height:30px; border-radius:9px; background:#fff; border:1px solid #ddd9fa; display:flex; align-items:center; justify-content:center; color:#4f46e5; font-size:14px;">⚖</div>
+        <div style="flex:1; min-width:240px;">
+          <div style="font-size:12.5px; font-weight:800; color:#2e2a6b;">Equilíbrio Dinâmico — {{ balanceRole }}</div>
+          <div style="font-size:12px; color:#5b58a3; margin-top:3px; line-height:1.5; text-wrap:pretty;">{{ balanceText }}</div>
+        </div>
+        <button style="background:#4f46e5; color:#fff; border:none; border-radius:9px; padding:9px 14px; font-size:12px; font-weight:700; cursor:pointer;" style-hover="background:#3f37cf;">Rebalancear com 1 clique</button>
+      </div>
+      <div style="font-size:11px; color:#9a9ab0; margin-top:8px;">A comparação acontece apenas entre pessoas do mesmo cargo.</div>
+    </div>
+  </sc-if>
+
+</div>
+</div>
+
+<sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeModal }}" style="position:fixed; inset:0; background:rgba(40,36,90,.45); backdrop-filter:blur(2px); display:flex; align-items:flex-start; justify-content:center; padding:24px; z-index:50; overflow-y:auto;">
+    <div onClick="{{ stop }}" style="width:100%; max-width:470px; margin:auto; background:#fff; border-radius:14px; padding:22px; box-shadow:0 24px 70px rgba(28,25,64,.3); max-height:calc(100vh - 48px); overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+        <div>
+          <div style="font-size:10.5px; font-weight:800; letter-spacing:.08em; color:#4f46e5; margin-bottom:6px;">● SHYDEVS</div>
+          <div style="font-size:19px; font-weight:800; color:#17172b; letter-spacing:-.02em;">Atribuir Nova Tarefa</div>
+          <div style="font-size:12.5px; color:#6b6b85; margin-top:4px;">Escolha o cargo e delegue a demanda a um especialista</div>
+        </div>
+        <button onClick="{{ closeModal }}" style="border:none; background:transparent; font-size:17px; color:#9a9ab0; cursor:pointer; line-height:1;">×</button>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:14px; margin-top:20px;">
+        <div>
+          <div style="font-size:12px; font-weight:700; color:#3d3d55; margin-bottom:6px;">Título da tarefa <span style="color:#e04f5f;">*</span></div>
+          <input placeholder="Modelar conjunto de props do lobby v2" style="width:100%; box-sizing:border-box; border:1px solid #e3e1ee; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#17172b; outline:none;" style-focus="border-color:#4f46e5;" />
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:700; color:#3d3d55; margin-bottom:6px;">Descrição curta</div>
+          <textarea rows="2" placeholder="Definir escopo, referências e limite de polycount" style="width:100%; box-sizing:border-box; border:1px solid #e3e1ee; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#17172b; outline:none; resize:vertical;" style-focus="border-color:#4f46e5;"></textarea>
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:700; color:#3d3d55; margin-bottom:6px;">Cargo <span style="color:#e04f5f;">*</span></div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <sc-for list="{{ formRoles }}" as="r" hint-placeholder-count="6">
+              <button onClick="{{ r.onClick }}" style="{{ r.style }}">
+                <span style="width:7px; height:7px; border-radius:50%; background:{{ r.color }};"></span>{{ r.name }}
+              </button>
+            </sc-for>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline;">
+            <div style="font-size:12px; font-weight:700; color:#3d3d55; margin-bottom:6px;">Pessoa responsável <span style="color:#e04f5f;">*</span></div>
+            <div style="font-size:11px; color:#8a8aa3;">{{ formPeopleCount }} disponíveis neste cargo</div>
+          </div>
+          <select style="width:100%; box-sizing:border-box; border:1px solid #e3e1ee; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#17172b; outline:none; cursor:pointer; background:#fff;">
+            <sc-for list="{{ formPeople }}" as="p" hint-placeholder-count="2">
+              <option>{{ p.label }}</option>
+            </sc-for>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:700; color:#3d3d55; margin-bottom:6px;">Data de entrega (Prazo) <span style="color:#e04f5f;">*</span></div>
+          <div style="display:flex; gap:7px; flex-wrap:wrap;">
+            <input type="date" style="flex:1; min-width:150px; border:1px solid #e3e1ee; border-radius:9px; padding:9px 11px; font-size:12.5px; color:#4a4a63; outline:none;" />
+            <div style="border:1px solid #e3e1ee; border-radius:9px; padding:9px 12px; font-size:12px; font-weight:600; color:#4a4a63; cursor:pointer;" style-hover="border-color:#4f46e5; color:#4f46e5;">Hoje</div>
+            <div style="border:1px solid #e3e1ee; border-radius:9px; padding:9px 12px; font-size:12px; font-weight:600; color:#4a4a63; cursor:pointer;" style-hover="border-color:#4f46e5; color:#4f46e5;">Amanhã</div>
+            <div style="border:1px solid #e3e1ee; border-radius:9px; padding:9px 12px; font-size:12px; font-weight:600; color:#4a4a63; cursor:pointer;" style-hover="border-color:#4f46e5; color:#4f46e5;">Próxima semana</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px; font-weight:700; color:#3d3d55; margin-bottom:6px;">Prioridade</div>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px;">
+            <sc-for list="{{ formPrios }}" as="p" hint-placeholder-count="3">
+              <button onClick="{{ p.onClick }}" style="{{ p.style }}"><span style="width:7px; height:7px; border-radius:50%; background:{{ p.color }};"></span>{{ p.name }}</button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:22px;">
+        <button onClick="{{ closeModal }}" style="border:1px solid #e3e1ee; background:#fff; border-radius:9px; padding:10px 16px; font-size:12.5px; font-weight:700; color:#4a4a63; cursor:pointer;" style-hover="background:#f7f7fb;">Cancelar</button>
+        <button onClick="{{ closeModal }}" style="border:none; background:#4f46e5; color:#fff; border-radius:9px; padding:10px 18px; font-size:12.5px; font-weight:700; cursor:pointer;" style-hover="background:#3f37cf;">+ Atribuir Tarefa</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#4f46e5&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#4f46e5&quot;,&quot;#0f766e&quot;,&quot;#b4531a&quot;,&quot;#3f3f5c&quot;]},&quot;showBalance&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const ROLES = [
+  { name: 'Modelador', color: 'oklch(0.62 0.15 45)' },
+  { name: 'Scripter', color: 'oklch(0.62 0.15 265)' },
+  { name: 'Vfx Maker', color: 'oklch(0.62 0.15 325)' },
+  { name: 'Ui Maker', color: 'oklch(0.62 0.15 200)' },
+  { name: 'Manager', color: 'oklch(0.62 0.15 150)' },
+  { name: 'SFX Maker', color: 'oklch(0.62 0.15 95)' }
+];
+
+const PEOPLE = [
+  { name: 'Bruna Alves', role: 'Modelador' },
+  { name: 'Téo Ramos', role: 'Modelador' },
+  { name: 'Luan Pires', role: 'Scripter' },
+  { name: 'Kaio Mendes', role: 'Scripter' },
+  { name: 'Igor Sato', role: 'Vfx Maker' },
+  { name: 'Nina Costa', role: 'Ui Maker' },
+  { name: 'Shy Moreira', role: 'Manager' },
+  { name: 'Rafa Lima', role: 'SFX Maker' }
+];
+
+const TASKS = [
+  { id: 'SD-104', title: 'Modelar conjunto de props do lobby v2', desc: 'Baús, bancadas e placas com limite de 4k tris por peça.', role: 'Modelador', person: 'Bruna Alves', due: 'Hoje às 18:00', late: false, prio: 'Alta', status: 'Em andamento' },
+  { id: 'SD-99', title: 'Refatorar sistema de inventário no servidor', desc: 'Separar validação de itens do módulo de troca e cobrir com testes.', role: 'Scripter', person: 'Luan Pires', due: 'Ontem (Atrasada)', late: true, prio: 'Alta', status: 'Pendente' },
+  { id: 'SD-108', title: 'Efeito de portal da nova zona', desc: 'Partículas em loop com variação de cor por bioma.', role: 'Vfx Maker', person: 'Igor Sato', due: '22 de Out', late: false, prio: 'Média', status: 'Em andamento' },
+  { id: 'SD-112', title: 'Redesenhar HUD de combate', desc: 'Barra de vida, cooldowns e feedback de dano em tela.', role: 'Ui Maker', person: 'Nina Costa', due: 'Amanhã', late: false, prio: 'Alta', status: 'Em andamento' },
+  { id: 'SD-115', title: 'Trilha ambiente da caverna', desc: 'Loop de 90s com camadas de reverb e gotejamento.', role: 'SFX Maker', person: 'Rafa Lima', due: '28 de Out', late: false, prio: 'Baixa', status: 'Pendente' },
+  { id: 'SD-95', title: 'Otimizar polycount do set de armas', desc: 'Reduzir 30% mantendo silhueta e bake de normais.', role: 'Modelador', person: 'Téo Ramos', due: '15 de Out (Atrasada)', late: true, prio: 'Média', status: 'Pendente' },
+  { id: 'SD-90', title: 'Roadmap do update de Halloween', desc: 'Escopo fechado por cargo e datas de corte para teste.', role: 'Manager', person: 'Shy Moreira', due: 'Concluído há 1 dia', late: false, prio: 'Média', status: 'Concluída' },
+  { id: 'SD-120', title: 'Script de matchmaking por ranking', desc: 'Fila por elo com fallback para lobby aberto.', role: 'Scripter', person: 'Luan Pires', due: '24 de Out', late: false, prio: 'Alta', status: 'Pendente' },
+  { id: 'SD-117', title: 'Telas de loading e splash', desc: 'Estados de carregamento com dicas rotativas.', role: 'Ui Maker', person: 'Nina Costa', due: '21 de Out', late: false, prio: 'Média', status: 'Em andamento' },
+  { id: 'SD-118', title: 'Partículas de dano crítico', desc: 'Impacto curto, legível em telas pequenas.', role: 'Vfx Maker', person: 'Igor Sato', due: '30 de Out', late: false, prio: 'Média', status: 'Pendente' },
+  { id: 'SD-121', title: 'Sons de UI (hover, clique, erro)', desc: 'Kit curto e consistente para todos os menus.', role: 'SFX Maker', person: 'Rafa Lima', due: '26 de Out', late: false, prio: 'Baixa', status: 'Pendente' },
+  { id: 'SD-101', title: 'Rig do NPC mercador', desc: 'Esqueleto compatível com as animações de idle existentes.', role: 'Modelador', person: 'Bruna Alves', due: '23 de Out', late: false, prio: 'Média', status: 'Pendente' }
+];
+
+const roleColor = (n) => (ROLES.find(r => r.name === n) || ROLES[0]).color;
+const initials = (n) => n.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+const chip = (active, color) =>
+  'display:inline-flex; align-items:center; gap:7px; border-radius:999px; padding:7px 13px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid ' +
+  (active ? (color || '#4f46e5') : '#e3e1ee') + '; background:' + (active ? (color || '#4f46e5') : '#fff') +
+  '; color:' + (active ? '#fff' : '#5a5a75') + ';';
+
+class Component extends DCLogic {
+  state = { role: 'Todos', status: 'Todas', prio: 'Todas', person: 'Todos', query: '', mode: 'tabela', checked: { 'SD-90': true }, modalOpen: false, formRole: 'Modelador', formPrio: 'Alta' };
+
+  set(k, v) { this.setState({ [k]: v }); }
+
+  renderVals() {
+    const accent = this.props.accent ?? '#4f46e5';
+    const s = this.state;
+    const matches = (t) => {
+      const q = s.query.trim().toLowerCase();
+      if (s.role !== 'Todos' && t.role !== s.role) return false;
+      if (s.person !== 'Todos' && t.person !== s.person) return false;
+      if (s.prio !== 'Todas' && t.prio !== s.prio) return false;
+      if (s.status === 'Atrasadas' && !t.late) return false;
+      if (s.status !== 'Todas' && s.status !== 'Atrasadas' && t.status !== s.status) return false;
+      if (q && !(t.title + t.desc + t.person + t.role + t.id).toLowerCase().includes(q)) return false;
+      return true;
+    };
+    const rows = TASKS.filter(matches);
+
+    const statusTabs = [
+      { label: 'Todas', count: TASKS.length },
+      { label: 'Pendentes', key: 'Pendente', count: TASKS.filter(t => t.status === 'Pendente').length },
+      { label: 'Em andamento', key: 'Em andamento', count: TASKS.filter(t => t.status === 'Em andamento').length },
+      { label: 'Concluídas', key: 'Concluída', count: TASKS.filter(t => t.status === 'Concluída').length },
+      { label: 'Atrasadas', key: 'Atrasadas', count: TASKS.filter(t => t.late).length }
+    ].map(t => {
+      const val = t.key || 'Todas';
+      const active = s.status === val;
+      return {
+        label: t.label, count: t.count,
+        onClick: () => this.set('status', val),
+        style: 'display:inline-flex; align-items:center; gap:6px; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid ' +
+          (active ? accent : '#e3e1ee') + '; background:' + (active ? accent : '#fff') + '; color:' + (active ? '#fff' : '#5a5a75') + ';'
+      };
+    });
+
+    // equilíbrio: compara apenas pessoas do mesmo cargo
+    let best = null;
+    ROLES.forEach(r => {
+      const members = PEOPLE.filter(p => p.role === r.name);
+      if (members.length < 2) return;
+      const load = members.map(m => ({ name: m.name, n: TASKS.filter(t => t.person === m.name && t.status !== 'Concluída').length }));
+      load.sort((a, b) => b.n - a.n);
+      const gap = load[0].n - load[load.length - 1].n;
+      if (!best || gap > best.gap) best = { gap, role: r.name, top: load[0], low: load[load.length - 1] };
+    });
+    const balanceText = best && best.gap > 0
+      ? best.top.name + ' está com ' + best.top.n + ' entregas abertas de ' + best.role + ' enquanto ' + best.low.name + ' está com ' + best.low.n + '. Considere transferir 1 tarefa para manter o cargo equilibrado.'
+      : 'Todos os cargos com mais de uma pessoa estão com a carga equilibrada no momento.';
+
+    const formPeople = PEOPLE.filter(p => p.role === s.formRole);
+
+    return {
+      accent, total: TASKS.length, shownCount: rows.length,
+      query: s.query, person: s.person, prio: s.prio,
+      showBalance: this.props.showBalance ?? true,
+      balanceRole: best ? best.role : 'Equipe',
+      balanceText,
+      people: PEOPLE,
+      onQuery: (e) => this.set('query', e.target.value),
+      onPerson: (e) => this.set('person', e.target.value),
+      onPrio: (e) => this.set('prio', e.target.value),
+      onRoleAll: () => this.set('role', 'Todos'),
+      openModal: () => this.set('modalOpen', true),
+      closeModal: () => this.set('modalOpen', false),
+      stop: (e) => e.stopPropagation(),
+      modalOpen: s.modalOpen,
+      setTabela: () => this.set('mode', 'tabela'),
+      setCards: () => this.set('mode', 'cards'),
+      modoTabelaStyle: 'border:none; border-radius:7px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; background:' + (s.mode === 'tabela' ? '#eef0ff' : 'transparent') + '; color:' + (s.mode === 'tabela' ? '#3b32c4' : '#6b6b85') + ';',
+      modoCardsStyle: 'border:none; border-radius:7px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; background:' + (s.mode === 'cards' ? '#eef0ff' : 'transparent') + '; color:' + (s.mode === 'cards' ? '#3b32c4' : '#6b6b85') + ';',
+      roleAllStyle: chip(s.role === 'Todos', accent),
+      roleChips: ROLES.map(r => ({
+        name: r.name, color: r.color,
+        count: TASKS.filter(t => t.role === r.name).length,
+        onClick: () => this.set('role', r.name),
+        style: chip(s.role === r.name, r.color)
+      })),
+      statusTabs,
+      formRoles: ROLES.map(r => ({
+        name: r.name, color: r.color,
+        onClick: () => this.set('formRole', r.name),
+        style: 'display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:7px 12px; font-size:11.5px; font-weight:700; cursor:pointer; border:1px solid ' +
+          (s.formRole === r.name ? r.color : '#e3e1ee') + '; background:' + (s.formRole === r.name ? 'color-mix(in oklab, ' + r.color + ' 12%, #fff)' : '#fff') +
+          '; color:' + (s.formRole === r.name ? '#17172b' : '#5a5a75') + ';'
+      })),
+      formPeople: formPeople.map(p => {
+        const open = TASKS.filter(t => t.person === p.name && t.status !== 'Concluída').length;
+        return { label: p.name + ' — ' + p.role + ' (' + open + ' abertas)' };
+      }),
+      formPeopleCount: formPeople.length,
+      formPrios: [
+        { name: 'Baixa', color: '#9a9ab0' }, { name: 'Média', color: '#e0a23c' }, { name: 'Alta', color: '#e04f5f' }
+      ].map(p => ({
+        name: p.name, color: p.color,
+        onClick: () => this.set('formPrio', p.name),
+        style: 'display:inline-flex; align-items:center; justify-content:center; gap:7px; border-radius:9px; padding:9px 0; font-size:12px; font-weight:700; cursor:pointer; border:1px solid ' +
+          (s.formPrio === p.name ? p.color : '#e3e1ee') + '; background:' + (s.formPrio === p.name ? 'color-mix(in oklab, ' + p.color + ' 10%, #fff)' : '#fff') + '; color:#3d3d55;'
+      })),
+      rows: rows.map(t => {
+        const rc = roleColor(t.role);
+        const prioMap = {
+          Alta: 'background:#fdeaec; color:#b42318;',
+          'Média': 'background:#fdf3e2; color:#a35c06;',
+          Baixa: 'background:#f1f1f6; color:#5a5a75;'
+        };
+        const statusMap = {
+          'Em andamento': 'background:#eef0ff; color:#3b32c4;',
+          Pendente: 'background:#f4f3f9; color:#6b6b85;',
+          'Concluída': 'background:#e8f6ee; color:#146c43;'
+        };
+        return {
+          id: t.id, title: t.title, desc: t.desc, role: t.role, person: t.person, due: t.due, prio: t.prio, status: t.status,
+          initials: initials(t.person),
+          checked: !!s.checked[t.id],
+          onToggle: () => this.setState(st => ({ checked: Object.assign({}, st.checked, { [t.id]: !st.checked[t.id] }) })),
+          roleStyle: 'display:inline-flex; align-items:center; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; background:color-mix(in oklab, ' + rc + ' 12%, #fff); color:color-mix(in oklab, ' + rc + ' 78%, #16162a);',
+          avatarStyle: 'width:24px; height:24px; flex:none; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:800; color:#fff; background:' + rc + ';',
+          dueColor: t.late ? 'color:#c0392f;' : 'color:#5a5a75;',
+          prioStyle: 'display:inline-flex; border-radius:6px; padding:4px 9px; font-size:11px; font-weight:700; ' + prioMap[t.prio],
+          statusStyle: 'display:inline-flex; border-radius:6px; padding:4px 9px; font-size:11px; font-weight:700; ' + statusMap[t.status]
+        };
+      })
+    };
+  }
+}
+
+</script>
+</body>
+</html>
