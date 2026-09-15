@@ -5,6 +5,7 @@ import { listEnter, listLeave } from '../motion'
 import { initials, roleIcon } from '../utils'
 import { tasksVersion } from '../taskBus'
 import MultiRoleSelect from './MultiRoleSelect.vue'
+import Checkbox from './Checkbox.vue'
 
 const emit = defineEmits(['changed'])
 
@@ -214,10 +215,10 @@ async function removePerson(person) {
             <label for="team-password" style="display:block; font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Senha (opcional)</label>
             <input id="team-password" v-model="form.password" type="password" placeholder="Para essa pessoa poder entrar" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none;" />
           </div>
-          <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#c7c5dc; cursor:pointer;">
-            <input type="checkbox" v-model="form.is_admin" style="width:14px; height:14px; accent-color:#7c6fff; cursor:pointer;" />
-            Tornar administrador (pode alterar tarefas e a equipe)
-          </label>
+          <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#c7c5dc;">
+            <Checkbox :model-value="form.is_admin" @update:model-value="form.is_admin = $event" aria-label="Tornar administrador" />
+            <span @click="form.is_admin = !form.is_admin" style="cursor:pointer;">Tornar administrador (pode alterar tarefas e a equipe)</span>
+          </div>
           <div v-if="error" style="padding:8px 10px; background:rgba(224,79,95,.14); border:1px solid rgba(224,79,95,.35); border-radius:8px; color:#ff8f98; font-size:11.5px; font-weight:600;">{{ error }}</div>
           <button @click="addPerson" :disabled="submitting" style="border:none; background:#7c6fff; color:#0a0a10; border-radius:8px; padding:9px 12px; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
             <i class="fi fi-sr-plus-small" aria-hidden="true"></i>{{ submitting ? 'Adicionando…' : 'Adicionar' }}
