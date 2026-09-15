@@ -73,11 +73,17 @@ function playEntrance() {
   step(tableCardEl.value, { y: 14, autoAlpha: 0, duration: 0.5 }, '-=0.2')
 }
 
-watch(balance, async (val) => {
-  if (!val) return
+watch(balance, async (val, oldVal) => {
+  // Only play the entrance animation the first time the card appears —
+  // re-triggering gsap.from() on every balance refresh (e.g. after each
+  // bulk action) could capture a mid-flight opacity as its new target if
+  // clicks came in faster than the tween finished, making the card look
+  // progressively more transparent with each click.
+  if (!val || oldVal) return
   await nextTick()
   if (reduceMotion || !balanceCardEl.value) return
-  gsap.from(balanceCardEl.value, { y: 14, autoAlpha: 0, duration: 0.5, ease: 'power3.out', clearProps: 'transform' })
+  gsap.killTweensOf(balanceCardEl.value)
+  gsap.fromTo(balanceCardEl.value, { y: 14, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, ease: 'power3.out', clearProps: 'transform' })
 })
 
 onMounted(async () => {
