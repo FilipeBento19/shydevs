@@ -25,6 +25,14 @@ export const auth = {
     persist()
     return res.person
   },
+  // Adopt a session handed to us directly (e.g. the admin account the
+  // backend auto-creates alongside a brand new project), skipping a
+  // separate login round-trip since we already have the token.
+  setSession(token, person) {
+    state.token = token
+    state.person = person
+    persist()
+  },
   async logout() {
     const logoutRequest = api.logout()
     state.token = null

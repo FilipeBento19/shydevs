@@ -96,15 +96,18 @@ class SubtaskPermission(permissions.BasePermission):
 
 
 class ProjectPermission(permissions.BasePermission):
-    """Anyone can read or create a project (creating your studio's workspace
-    doesn't require being logged into one yet). Renaming/deleting a project
-    requires being an admin *of that specific project*."""
+    """Anyone can read (that's how the switcher lists projects for people who
+    aren't logged in yet). Creating a new project requires being an admin
+    already — of any project, since you don't belong to the new one yet.
+    Renaming/deleting a project requires being an admin *of that project*."""
 
     def has_permission(self, request, view):
-        if request.method in permissions.SAFE_METHODS or request.method == 'POST':
+        if request.method in permissions.SAFE_METHODS:
             return True
         user = request.user
-        return bool(user and getattr(user, 'is_authenticated', False))
+        if not (user and getattr(user, 'is_authenticated', False) and getattr(user, 'is_admin', False)):
+            return False
+        return True
 
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
@@ -130,14 +133,22 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         project = Project.objects.create(name=name)
 
-        admin_name = (request.data.get('admin_name') or '').strip()
-        admin_password = request.data.get('admin_password') or ''
-        if admin_name and admin_password:
-            admin = Person(project=project, name=admin_name, is_admin=True)
-            admin.set_password(admin_password)
-            admin.save()
+        # The admin who created it becomes this project's first admin too —
+        # same name and password (copied as a hash, never re-entered), so
+        # they can switch straight in without a separate signup step.
+        creator = request.user
+        admin = Person(project=project, name=creator.name, is_admin=True, password=creator.password)
+        admin.save()
+        token = AuthToken.objects.create(person=admin, key=AuthToken.generate_key())
 
-        return Response(ProjectSerializer(project).data, status=http_status.HTTP_201_CREATED)
+        return Response(
+            {
+                'project': ProjectSerializer(project).data,
+                'token': token.key,
+                'person': PersonSerializer(admin).data,
+            },
+            status=http_status.HTTP_201_CREATED,
+        )
 
 
 class LoginView(APIView):

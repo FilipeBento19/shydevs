@@ -26,10 +26,10 @@ export const project = {
     }
   },
 
-  // Called once at boot: makes sure there's always a current project selected
-  // when exactly one exists (the common single-studio case), and keeps the
-  // header's project in sync with an already-logged-in person's own project
-  // (e.g. after a refresh where local storage still has a valid token).
+  // Called once at boot: keeps the header's project in sync with an
+  // already-logged-in person's own project (e.g. after a refresh where
+  // local storage still has a valid token), and otherwise defaults anyone
+  // who hasn't picked one yet to the oldest project — "the first one".
   async ensureSelected() {
     if (!state.loaded) await this.loadList()
 
@@ -43,12 +43,20 @@ export const project = {
     }
 
     if (state.current && state.list.some((p) => p.id === state.current.id)) return
-    if (state.list.length === 1) {
-      this.select(state.list[0])
-    } else if (state.current && !state.list.some((p) => p.id === state.current.id)) {
+    if (state.list.length > 0) {
+      const oldest = [...state.list].sort((a, b) => a.id - b.id)[0]
+      state.current = { id: oldest.id, name: oldest.name }
+      persist()
+    } else if (state.current) {
       state.current = null
       persist()
     }
+  },
+
+  // The other projects a person could switch to — used to decide whether
+  // the switcher has anything to show someone who isn't an admin.
+  get otherProjects() {
+    return state.list.filter((p) => p.id !== state.current?.id)
   },
 
   select(proj) {
@@ -58,11 +66,16 @@ export const project = {
     persist()
   },
 
-  async create(name, adminName, adminPassword) {
-    const created = await api.createProject({ name, admin_name: adminName, admin_password: adminPassword })
+  // Admin-only: spins up a new project and, since the creator doesn't have
+  // an account there yet, the backend clones their own (same name/password
+  // hash) as that project's first admin and hands back a ready session.
+  async create(name) {
+    const res = await api.createProject({ name })
     await this.loadList()
-    this.select(created)
-    return created
+    state.current = { id: res.project.id, name: res.project.name }
+    persist()
+    auth.setSession(res.token, res.person)
+    return res.project
   },
 
   async rename(name) {

@@ -43,14 +43,21 @@ const nameDraft = ref('')
 const savingName = ref(false)
 const creatingProject = ref(false)
 const newProjectName = ref('')
-const newAdminName = ref('')
-const newAdminPassword = ref('')
 const savingProject = ref(false)
 const projectError = ref('')
+
+// What the switcher shows: an anonymous or non-admin visitor only ever sees
+// other projects to jump to (nothing if there aren't any); an admin sees the
+// full list plus rename/create controls for their own project.
+const switcherProjects = computed(() =>
+  canEdit.value ? project.state.list : project.otherProjects
+)
+const hasSwitcherContent = computed(() => switcherProjects.value.length > 0 || (auth.isLoggedIn && canEdit.value))
 
 onMounted(() => project.ensureSelected())
 
 function toggleProjectMenu() {
+  if (!projectMenuOpen.value && !hasSwitcherContent.value) return
   projectMenuOpen.value = !projectMenuOpen.value
   editingName.value = false
   creatingProject.value = false
@@ -85,26 +92,18 @@ async function saveName() {
 }
 function startCreateProject() {
   newProjectName.value = ''
-  newAdminName.value = ''
-  newAdminPassword.value = ''
   projectError.value = ''
   creatingProject.value = true
 }
 async function saveNewProject() {
   const name = newProjectName.value.trim()
-  const adminName = newAdminName.value.trim()
-  const adminPassword = newAdminPassword.value
-  if (!name || !adminName || !adminPassword) {
-    projectError.value = 'Preencha nome do projeto, seu nome e uma senha.'
-    return
-  }
+  if (!name) return
   savingProject.value = true
   projectError.value = ''
   try {
-    await project.create(name, adminName, adminPassword)
+    await project.create(name)
     creatingProject.value = false
     projectMenuOpen.value = false
-    await auth.login(adminName, adminPassword, project.state.current.id)
     router.push({ name: 'home' })
   } catch (e) {
     projectError.value = e.status === 400 ? 'Já existe um projeto com esse nome.' : 'Não foi possível criar o projeto.'
@@ -216,22 +215,22 @@ defineExpose({ mascot })
     <div class="project-menu" style="position:relative; flex:none; z-index:100;">
       <button type="button" @click="toggleProjectMenu"
         aria-haspopup="menu" :aria-expanded="projectMenuOpen"
-        :aria-label="`Projeto atual: ${projectName}. Trocar de projeto`"
-        style="display:flex; align-items:center; gap:6px; background:#16161f; border:1px solid #22222f; border-radius:8px; padding:5px 10px; font-size:12.5px; font-weight:600; color:#c7c5dc; white-space:nowrap; cursor:pointer;">
+        :aria-label="hasSwitcherContent ? `Projeto atual: ${projectName}. Trocar de projeto` : `Projeto atual: ${projectName}`"
+        :style="{ display:'flex', alignItems:'center', gap:'6px', background:'#16161f', border:'1px solid #22222f', borderRadius:'8px', padding:'5px 10px', fontSize:'12.5px', fontWeight:'600', color:'#c7c5dc', whiteSpace:'nowrap', cursor: hasSwitcherContent ? 'pointer' : 'default' }">
         <span style="width:7px; height:7px; border-radius:50%; background:#7c6fff; flex:none;" aria-hidden="true"></span>{{ projectName }}
-        <i class="fi fi-sr-angle-small-down" aria-hidden="true" style="font-size:9px; opacity:.6;"></i>
+        <i v-if="hasSwitcherContent" class="fi fi-sr-angle-small-down" aria-hidden="true" style="font-size:9px; opacity:.6;"></i>
       </button>
 
       <Transition :css="false" @enter="popEnter" @leave="popLeave">
         <div v-if="projectMenuOpen" role="menu" @click.stop style="position:absolute; left:0; top:38px; background:#14141d; border:1px solid #26263a; border-radius:10px; padding:8px; width:230px; z-index:500; box-shadow:0 14px 40px rgba(0,0,0,.5);">
-          <div style="font-size:10px; font-weight:700; letter-spacing:.06em; color:#65637a; text-transform:uppercase; padding:4px 8px 6px;">Projetos</div>
-          <button v-for="p in project.state.list" :key="p.id" role="menuitem" type="button" @click="pickProject(p)"
+          <div v-if="switcherProjects.length" style="font-size:10px; font-weight:700; letter-spacing:.06em; color:#65637a; text-transform:uppercase; padding:4px 8px 6px;">Projetos</div>
+          <button v-for="p in switcherProjects" :key="p.id" role="menuitem" type="button" @click="pickProject(p)"
             :style="{ width:'100%', textAlign:'left', display:'flex', alignItems:'center', gap:'8px', fontSize:'12px', fontWeight: p.id === project.state.current?.id ? '700' : '500', color: p.id === project.state.current?.id ? '#f5f4fb' : '#c7c5dc', padding:'8px', borderRadius:'7px', cursor:'pointer', border:'none', background: p.id === project.state.current?.id ? 'rgba(124,111,255,.14)' : 'transparent' }">
             <i class="fi fi-sr-folder" aria-hidden="true" style="font-size:11px; opacity:.7;"></i>{{ p.name }}
             <i v-if="p.id === project.state.current?.id" class="fi fi-sr-check" aria-hidden="true" style="margin-left:auto; font-size:10px; color:#7c6fff;"></i>
           </button>
 
-          <div v-if="canEdit && project.state.current" style="border-top:1px solid #22222f; margin-top:6px; padding-top:6px;">
+          <div v-if="canEdit && project.state.current" :style="{ borderTop: switcherProjects.length ? '1px solid #22222f' : 'none', marginTop: switcherProjects.length ? '6px' : '0', paddingTop: switcherProjects.length ? '6px' : '0' }">
             <button v-if="!editingName" role="menuitem" type="button" @click="startEditName" style="width:100%; text-align:left; display:flex; align-items:center; gap:8px; font-size:12px; color:#c7c5dc; padding:8px; border-radius:7px; cursor:pointer; border:none; background:transparent;">
               <i class="fi fi-sr-pencil" aria-hidden="true"></i>Renomear projeto atual
             </button>
@@ -243,7 +242,7 @@ defineExpose({ mascot })
             </form>
           </div>
 
-          <div style="border-top:1px solid #22222f; margin-top:6px; padding-top:6px;">
+          <div v-if="auth.isLoggedIn && canEdit" style="border-top:1px solid #22222f; margin-top:6px; padding-top:6px;">
             <button v-if="!creatingProject" role="menuitem" type="button" @click="startCreateProject" style="width:100%; text-align:left; display:flex; align-items:center; gap:8px; font-size:12px; color:#b3aaff; padding:8px; border-radius:7px; cursor:pointer; border:none; background:transparent;">
               <i class="fi fi-sr-plus-small" aria-hidden="true"></i>Criar novo projeto
             </button>
@@ -251,15 +250,9 @@ defineExpose({ mascot })
               <label for="new-project-name" class="sr-only">Nome do novo projeto</label>
               <input id="new-project-name" v-model="newProjectName" placeholder="Nome do projeto" autofocus
                 style="border:1px solid #26263a; background:#0e0e14; border-radius:7px; padding:7px 9px; font-size:12px; color:#f5f4fb; outline:none;" />
-              <label for="new-project-admin" class="sr-only">Seu nome</label>
-              <input id="new-project-admin" v-model="newAdminName" placeholder="Seu nome (vira admin)"
-                style="border:1px solid #26263a; background:#0e0e14; border-radius:7px; padding:7px 9px; font-size:12px; color:#f5f4fb; outline:none;" />
-              <label for="new-project-password" class="sr-only">Senha</label>
-              <input id="new-project-password" v-model="newAdminPassword" type="password" placeholder="Senha"
-                style="border:1px solid #26263a; background:#0e0e14; border-radius:7px; padding:7px 9px; font-size:12px; color:#f5f4fb; outline:none;" />
               <div v-if="projectError" style="font-size:11px; color:#ff8f98;">{{ projectError }}</div>
               <div style="display:flex; gap:6px;">
-                <button type="submit" :disabled="savingProject" style="flex:1; border:none; background:#7c6fff; color:#0a0a10; border-radius:7px; padding:7px 0; font-size:11.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+                <button type="submit" :disabled="savingProject || !newProjectName.trim()" style="flex:1; border:none; background:#7c6fff; color:#0a0a10; border-radius:7px; padding:7px 0; font-size:11.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
                   <span v-if="savingProject" class="btn-spinner" aria-hidden="true"></span>{{ savingProject ? 'Criando…' : 'Criar' }}
                 </button>
                 <button type="button" @click="creatingProject = false" style="border:1px solid #26263a; background:transparent; color:#8b899f; border-radius:7px; padding:7px 10px; font-size:11.5px; cursor:pointer;">Cancelar</button>
