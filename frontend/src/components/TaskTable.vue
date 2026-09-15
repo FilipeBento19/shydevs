@@ -79,8 +79,8 @@ function openTask(task) {
               <AssigneeAvatar :photo="t.assignee_photo" :color="roleColor(t.role)" :size="24" />
               <span style="font-size:12px; font-weight:600; color:#d6d4e6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.assignee_name || 'Sem responsável' }}</span>
             </div>
-            <div :style="{ fontSize: '11.5px', fontWeight: '600', color: isLate(t) ? '#ff8f98' : '#9a97b8', display: 'flex', alignItems: 'center', gap: '6px' }">
-              <i class="fi fi-sr-calendar" style="font-size:10.5px; opacity:.75;" aria-hidden="true"></i>{{ formatDue(t) }}
+            <div :style="{ fontSize: '11.5px', fontWeight: '600', color: isLate(t) ? '#ff8f98' : '#9a97b8', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }">
+              <i class="fi fi-sr-calendar" style="font-size:10.5px; opacity:.75; flex:none;" aria-hidden="true"></i>{{ formatDue(t) }}
             </div>
             <div><span :style="prioBadge(t.priority)">{{ t.priority }}</span></div>
             <div><span :style="statusBadge(t.status)">{{ t.status }}</span></div>
