@@ -27,8 +27,13 @@ function updatePanelPos() {
   const r = triggerEl.value.getBoundingClientRect()
   panelPos.value = { top: r.bottom + 6, left: r.left, minWidth: r.width }
 }
-function onWindowScrollOrResize() {
-  if (open.value) closePanel()
+function onWindowScrollOrResize(e) {
+  if (!open.value) return
+  // Scrolling the panel's own option list (its overflow-y:auto) fires a
+  // 'scroll' event that this capture-phase listener also sees — ignore it,
+  // only close on scrolling that happens outside the panel/trigger.
+  if (e?.target?.closest?.(`#${uid}-panel`)) return
+  closePanel()
 }
 
 function toggle() {
@@ -79,7 +84,7 @@ onUnmounted(() => {
 
     <Teleport to="body">
       <Transition :css="false" @enter="popEnter" @leave="popLeave">
-        <div v-if="open" :id="`${uid}-panel`" role="listbox" aria-multiselectable="true"
+        <div v-if="open" :id="`${uid}-panel`" class="nice-scroll" role="listbox" aria-multiselectable="true"
           :style="{
             position: 'fixed', top: `${panelPos.top}px`, left: `${panelPos.left}px`,
             minWidth: `${panelPos.minWidth}px`, width: 'max-content', maxWidth: '260px', background: '#14141d',

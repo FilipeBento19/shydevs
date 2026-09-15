@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { api } from '../api'
 import { auth } from '../auth'
 import { playDing } from '../sound'
@@ -21,6 +21,23 @@ const balance = ref(null)
 const loading = ref(true)
 const error = ref('')
 
+// ---- auto-sync status ----
+const lastSyncedAt = ref(null)
+const syncing = ref(false)
+const now = ref(Date.now())
+let syncInterval = null
+let clockInterval = null
+
+const syncLabel = computed(() => {
+  if (!lastSyncedAt.value) return ''
+  const diffSec = Math.max(0, Math.round((now.value - lastSyncedAt.value.getTime()) / 1000))
+  if (diffSec < 5) return 'agora mesmo'
+  if (diffSec < 60) return `há ${diffSec}s`
+  const diffMin = Math.round(diffSec / 60)
+  if (diffMin < 60) return `há ${diffMin} min`
+  return lastSyncedAt.value.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+})
+
 const filters = reactive({ role: 'Todos', status: 'Todas', prio: 'Todas', person: 'Todos', query: '' })
 const myTasksOnly = ref(false)
 const boardMode = ref('tabela')
@@ -38,6 +55,7 @@ async function loadAll() {
   // triggered by a background change elsewhere (e.g. someone's profile
   // photo updating) shouldn't flash the table back to a loading spinner.
   if (!tasks.value.length) loading.value = true
+  syncing.value = true
   error.value = ''
   try {
     const [taskList, peopleList, roleList, balanceData] = await Promise.all([
@@ -47,10 +65,12 @@ async function loadAll() {
     people.value = peopleList
     roles.value = roleList
     balance.value = balanceData
+    lastSyncedAt.value = new Date()
   } catch (e) {
     error.value = e.message || 'Não foi possível carregar os dados do backend.'
   } finally {
     loading.value = false
+    syncing.value = false
   }
 }
 
@@ -90,6 +110,13 @@ onMounted(async () => {
   await loadAll()
   await nextTick()
   playEntrance()
+  // Keep the board in sync on its own, even with no one touching anything.
+  syncInterval = setInterval(loadAll, 30000)
+  clockInterval = setInterval(() => { now.value = Date.now() }, 1000)
+})
+onUnmounted(() => {
+  clearInterval(syncInterval)
+  clearInterval(clockInterval)
 })
 
 function onKeydown(e) {
@@ -275,6 +302,11 @@ async function onKanbanStatusChange(task, status) {
       <div style="font-size:13px; font-weight:700; color:#f5f4fb;">
         Demandas Selecionadas
         <span style="font-weight:500; color:#8b899f; font-size:11.5px;">Exibindo {{ filteredTasks.length }} de {{ tasks.length }} tarefas</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#8b899f; flex:none;">
+        <span :style="{ width: '6px', height: '6px', borderRadius: '50%', flex: 'none', background: syncing ? '#e0a23c' : '#3fcf8e', transition: 'background-color .2s ease', animation: syncing ? 'sync-pulse 1s ease-in-out infinite' : 'none' }" aria-hidden="true"></span>
+        <span v-if="syncing">Sincronizando…</span>
+        <span v-else-if="lastSyncedAt">Sincronizado {{ syncLabel }}</span>
       </div>
     </div>
 

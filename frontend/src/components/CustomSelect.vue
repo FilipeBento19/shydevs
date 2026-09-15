@@ -41,8 +41,13 @@ function updatePanelPos() {
       ? { top: r.bottom + 6, right: window.innerWidth - r.right, left: 'auto', minWidth: r.width }
       : { top: r.bottom + 6, left: r.left, right: 'auto', minWidth: r.width }
 }
-function onWindowScrollOrResize() {
-  if (open.value) closePanel(false)
+function onWindowScrollOrResize(e) {
+  if (!open.value) return
+  // Scrolling the panel's own option list (its overflow-y:auto) fires a
+  // 'scroll' event that this capture-phase listener also sees — ignore it,
+  // only close on scrolling that happens outside the panel/trigger.
+  if (e?.target?.closest?.(`#${uid}-listbox`)) return
+  closePanel(false)
 }
 
 function openPanel(focusIndex) {
@@ -164,7 +169,7 @@ onUnmounted(() => {
         <div
           v-if="open"
           :id="`${uid}-listbox`"
-          class="cs-panel"
+          class="cs-panel nice-scroll"
           role="listbox"
           :style="{
             position: 'fixed', top: `${panelPos.top}px`, left: typeof panelPos.left === 'number' ? `${panelPos.left}px` : panelPos.left,

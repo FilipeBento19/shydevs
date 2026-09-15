@@ -11,6 +11,7 @@ import CustomSelect from '../components/CustomSelect.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import BackButton from '../components/BackButton.vue'
 import AssigneeAvatar from '../components/AssigneeAvatar.vue'
+import Checkbox from '../components/Checkbox.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -317,7 +318,7 @@ function setQuickDate(offsetDays) {
             </div>
             <TransitionGroup tag="div" @enter="listEnter" @leave="listLeave" :css="false" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
               <div v-for="(st, i) in subtasks" :key="st.id" :data-index="i" style="display:flex; align-items:center; gap:8px; background:#0e0e14; border:1px solid #22222f; border-radius:8px; padding:8px 10px;">
-                <input type="checkbox" :checked="st.done" :disabled="!canEdit" @change="toggleSubtask(st)" style="width:14px; height:14px; accent-color:#7c6fff; cursor:pointer;" />
+                <Checkbox :model-value="st.done" :disabled="!canEdit" @update:model-value="toggleSubtask(st)" :aria-label="`Marcar etapa: ${st.title}`" />
                 <span :style="{ flex: 1, fontSize: '12.5px', color: st.done ? '#8f8da8' : '#e4e2f1', textDecoration: st.done ? 'line-through' : 'none' }">{{ st.title }}</span>
                 <button v-if="canEdit" type="button" @click="removeSubtask(st)" :aria-label="`Remover etapa: ${st.title}`" style="border:none; background:transparent; color:#8f8da8; cursor:pointer; font-size:12px;"><i class="fi fi-sr-cross-small" aria-hidden="true"></i></button>
               </div>
