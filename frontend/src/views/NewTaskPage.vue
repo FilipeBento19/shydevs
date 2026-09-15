@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
+import { vAutogrow } from '../directives/autogrow'
 import { bumpTasks } from '../taskBus'
 import { mascot } from '../mascotFace'
 import RoleSelectButtons from '../components/RoleSelectButtons.vue'
@@ -40,6 +41,7 @@ const form = reactive({
 })
 const submitting = ref(false)
 const formError = ref('')
+const checklist = ref([''])
 
 const formPeople = computed(() => people.value.filter((p) => (p.roles || []).includes(form.role)))
 const assigneeOptions = computed(() => formPeople.value.map((p) => ({
@@ -54,6 +56,19 @@ function onRoleChange(name) {
 
 function goBack() {
   router.push({ name: 'board' })
+}
+
+function addChecklistItem() {
+  if (!checklist.value.at(-1)?.trim()) return
+  checklist.value.push('')
+}
+
+function removeChecklistItem(index) {
+  if (checklist.value.length === 1) {
+    checklist.value[0] = ''
+    return
+  }
+  checklist.value.splice(index, 1)
 }
 
 async function submit() {
@@ -77,6 +92,12 @@ async function submit() {
       priority: form.priority,
       status: 'Pendente',
     })
+    const steps = checklist.value.map((item) => item.trim()).filter(Boolean)
+    await Promise.all(steps.map((title, order) => api.createSubtask({
+      task: created.id,
+      title,
+      order,
+    })))
     bumpTasks()
     router.push({ name: 'task', params: { id: created.id } })
   } catch (e) {
@@ -106,7 +127,34 @@ async function submit() {
           </div>
           <div>
             <label for="new-task-desc" style="display:block; font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Descrição curta</label>
-            <textarea id="new-task-desc" v-model="form.description" rows="2" placeholder="Definir escopo, referências e limite de polycount" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#f5f4fb; outline:none; resize:vertical;"></textarea>
+            <textarea id="new-task-desc" v-autogrow v-model="form.description" rows="2" placeholder="Definir escopo, referências e limite de polycount" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#f5f4fb; outline:none;"></textarea>
+          </div>
+          <div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:7px;">
+              <div>
+                <div style="font-size:12px; font-weight:700; color:#c7c5dc;">Checklist do que fazer</div>
+                <div style="margin-top:2px; font-size:10px; color:#77758d;">Deixe as etapas prontas para quem receber a tarefa.</div>
+              </div>
+              <span style="font-size:9.5px; color:#8b899f;">{{ checklist.filter(item => item.trim()).length }} etapas</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:7px;">
+              <div v-for="(item, index) in checklist" :key="index" style="display:flex; align-items:center; gap:7px;">
+                <span style="display:grid; place-items:center; width:24px; height:24px; flex:none; border:1px solid #292837; border-radius:7px; background:#101017; color:#8f87dd; font-size:9px; font-weight:800;">{{ index + 1 }}</span>
+                <input
+                  v-model="checklist[index]"
+                  :aria-label="`Etapa ${index + 1} do checklist`"
+                  placeholder="Ex.: Enviar primeira versão para revisão"
+                  style="flex:1; min-width:0; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12px; color:#f5f4fb; outline:none;"
+                  @keydown.enter.prevent="addChecklistItem"
+                />
+                <button type="button" :aria-label="`Remover etapa ${index + 1}`" @click="removeChecklistItem(index)" style="display:grid; place-items:center; width:30px; height:30px; flex:none; border:1px solid #26263a; border-radius:8px; background:#0e0e14; color:#77758d; cursor:pointer;">
+                  <i class="fi fi-sr-cross-small" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+            <button type="button" @click="addChecklistItem" style="display:inline-flex; align-items:center; gap:5px; margin-top:8px; padding:6px 9px; border:1px solid #292837; border-radius:7px; background:#101017; color:#aaa7bc; font-size:10.5px; font-weight:700; cursor:pointer;">
+              <i class="fi fi-sr-plus-small" aria-hidden="true"></i>Adicionar etapa
+            </button>
           </div>
           <div>
             <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Cargo <span style="color:#ff8f98;">*</span></div>

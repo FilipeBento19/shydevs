@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { api } from '../api'
 import { auth } from '../auth'
+import { vAutogrow } from '../directives/autogrow'
 import { initials } from '../utils'
 
 const props = defineProps({
@@ -104,7 +105,13 @@ function formatDate(value) {
   <section class="comments-panel">
     <header class="comments-header">
       <div>
-        <span class="comments-icon"><i class="fi fi-sr-comments" aria-hidden="true"></i></span>
+        <span class="comments-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M5.5 5.75h9a3 3 0 0 1 3 3v3.5a3 3 0 0 1-3 3H10l-3.65 2.8c-.5.38-1.22.03-1.22-.6v-2.22A3 3 0 0 1 2.5 12.25v-3.5a3 3 0 0 1 3-3Z" fill="currentColor" />
+            <path d="M8 9.15h4.65M8 11.85h6.1" stroke="#171423" stroke-width="1.45" stroke-linecap="round" />
+            <path d="M18.15 9.1h.35a3 3 0 0 1 3 3v2.55a3 3 0 0 1-2.4 2.94v1.46c0 .58-.67.9-1.12.54l-2.45-1.94h-3.2a2.98 2.98 0 0 1-2.45-1.28" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </span>
         <div>
           <strong>Comentários</strong>
           <span>Dúvidas, feedback e pedidos de ajuste</span>
@@ -162,6 +169,7 @@ function formatDate(value) {
       <label for="task-comment" class="sr-only">Escrever comentário</label>
       <textarea
         id="task-comment"
+        v-autogrow
         v-model="draft"
         rows="3"
         maxlength="2000"
@@ -190,11 +198,12 @@ function formatDate(value) {
 .comment-form-footer { display: flex; align-items: center; }
 .comments-header { justify-content: space-between; gap: 12px; margin-bottom: 13px; }
 .comments-header > div { gap: 9px; min-width: 0; }
-.comments-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border: 1px solid rgba(124,111,255,.22); border-radius: 9px; background: rgba(124,111,255,.1); color: #aaa1ff; font-size: 12px; }
+.comments-icon { display: flex !important; align-items: center; justify-content: center; width: 30px; height: 30px; flex: none; margin: 0 !important; overflow: visible !important; border: 1px solid rgba(124,111,255,.28); border-radius: 9px; background: rgba(124,111,255,.12); color: #aaa1ff; }
+.comments-icon svg { display: block; width: 19px; height: 19px; flex: none; }
 .comments-header strong,
 .comments-header div span { display: block; }
 .comments-header strong { font-size: 12px; }
-.comments-header div span { margin-top: 2px; overflow: hidden; color: #7f7c92; font-size: 9.5px; text-overflow: ellipsis; white-space: nowrap; }
+.comments-header > div > div > span { margin-top: 2px; overflow: hidden; color: #7f7c92; font-size: 9.5px; text-overflow: ellipsis; white-space: nowrap; }
 .comments-count { display: grid; place-items: center; min-width: 23px; height: 23px; border: 1px solid #2b2a39; border-radius: 7px; background: #101017; color: #9894ad; font-size: 9.5px; font-weight: 800; }
 .comments-list { display: flex; flex-direction: column; gap: 10px; max-height: 340px; overflow-y: auto; padding-inline-end: 4px; }
 .comments-state { padding: 18px 0; color: #77758d; font-size: 11px; }
@@ -218,7 +227,7 @@ function formatDate(value) {
 .comments-error { margin: 9px 0 0; color: #ff8f98; font-size: 10px; }
 .comment-form { margin-top: 12px; overflow: hidden; border: 1px solid #292837; border-radius: 10px; background: #0e0e14; transition-property: border-color; transition-duration: 150ms; }
 .comment-form:focus-within { border-color: rgba(124,111,255,.7); }
-.comment-form textarea { display: block; width: 100%; min-height: 72px; box-sizing: border-box; padding: 10px 11px; resize: vertical; border: 0; outline: 0; background: transparent; color: #f5f4fb; font: inherit; font-size: 11.5px; line-height: 1.5; }
+.comment-form textarea { display: block; width: 100%; min-height: 72px; box-sizing: border-box; padding: 10px 11px; border: 0; outline: 0; background: transparent; color: #f5f4fb; font: inherit; font-size: 11.5px; line-height: 1.5; }
 .comment-form textarea::placeholder { color: #656276; }
 .comment-form-footer { justify-content: space-between; gap: 10px; padding: 7px 8px; border-top: 1px solid #20202b; }
 .comment-form-footer > span { color: #5f5c70; font-size: 8.5px; }

@@ -25,7 +25,7 @@ const routes = [
     path: '/dashboard',
     name: 'dashboard',
     component: DashboardView,
-    meta: { nav: 'dashboard', title: 'Dashboard do Time', subtitle: 'Acompanhe a carga de trabalho e o progresso do time em tempo real.' },
+    meta: { nav: 'dashboard', title: 'Dashboard do Time', subtitle: 'Acompanhe a carga de trabalho e o progresso do time em tempo real.', requiresAuth: true },
   },
   {
     path: '/history',

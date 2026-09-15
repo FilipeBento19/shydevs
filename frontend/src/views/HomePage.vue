@@ -154,7 +154,7 @@ onUnmounted(clearSceneTimer)
           {{ isAdmin ? 'Central do administrador' : 'Central do projeto' }}
         </span>
         <h1>
-          Akanub, <span>amoleça meu pau</span>
+          Bem vindo <span>Shydevers</span>
         </h1>
         <p>
           Transforme cada demanda do jogo em um fluxo claro: defina o trabalho, escolha quem faz,
@@ -168,7 +168,7 @@ onUnmounted(clearSceneTimer)
           <button v-else class="primary-button" type="button" @click="go('board')">
             <i class="fi fi-sr-table-list" aria-hidden="true"></i>Abrir o quadro
           </button>
-          <button class="secondary-button" type="button" @click="go('dashboard')">
+          <button v-if="auth.isLoggedIn" class="secondary-button" type="button" @click="go('dashboard')">
             Ver dashboard<i class="fi fi-sr-arrow-right" aria-hidden="true"></i>
           </button>
         </div>

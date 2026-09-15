@@ -65,3 +65,8 @@ class CommentApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         author_workload = next(person for person in response.data['workload'] if person['name'] == self.author.name)
         self.assertTrue(author_workload['photo'].endswith('/media/avatars/tutu.png'))
+
+    def test_anonymous_person_cannot_access_dashboard(self):
+        response = self.client.get(reverse('task-dashboard'))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { auth } from '../auth'
+import { vAutogrow } from '../directives/autogrow'
 import { playDing } from '../sound'
 import { bumpTasks, tasksVersion } from '../taskBus'
 import { listEnter, listLeave } from '../motion'
@@ -256,7 +257,7 @@ function setQuickDate(offsetDays) {
               </div>
               <div>
                 <label for="task-desc" style="display:block; font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Descrição — o que precisa ser feito</label>
-                <textarea id="task-desc" v-model="form.description" :disabled="!canEdit" rows="3" :style="{ width: '100%', boxSizing: 'border-box', border: '1px solid #26263a', background: canEdit ? '#0e0e14' : '#131319', borderRadius: '9px', padding: '10px 12px', fontSize: '12.5px', color: canEdit ? '#f5f4fb' : '#9a97b8', outline: 'none', resize: 'vertical' }"></textarea>
+                <textarea id="task-desc" v-autogrow v-model="form.description" :disabled="!canEdit" rows="3" :style="{ width: '100%', boxSizing: 'border-box', border: '1px solid #26263a', background: canEdit ? '#0e0e14' : '#131319', borderRadius: '9px', padding: '10px 12px', fontSize: '12.5px', color: canEdit ? '#f5f4fb' : '#9a97b8', outline: 'none' }"></textarea>
               </div>
 
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
@@ -304,9 +305,9 @@ function setQuickDate(offsetDays) {
                 <label for="task-completion-note" style="display:block; font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">
                   Nota de conclusão <span v-if="form.status === 'Concluída'" style="color:#ff8f98;">*</span>
                 </label>
-                <textarea id="task-completion-note" v-model="form.completion_note" :disabled="!canEditStatus" rows="3"
-                  placeholder="O que foi feito, decisões tomadas, pontos de atenção…"
-                  :style="{ width: '100%', boxSizing: 'border-box', border: `1px solid ${noteRequired ? 'rgba(224,79,95,.5)' : '#26263a'}`, background: canEditStatus ? '#0e0e14' : '#131319', borderRadius: '9px', padding: '10px 12px', fontSize: '12.5px', color: canEditStatus ? '#f5f4fb' : '#9a97b8', outline: 'none', resize: 'vertical' }"></textarea>
+                <textarea id="task-completion-note" v-autogrow v-model="form.completion_note" :disabled="!canEditStatus" rows="3"
+                  placeholder="ta tudo conforme pedido paizao? se sim da um salve"
+                  :style="{ width: '100%', boxSizing: 'border-box', border: `1px solid ${noteRequired ? 'rgba(224,79,95,.5)' : '#26263a'}`, background: canEditStatus ? '#0e0e14' : '#131319', borderRadius: '9px', padding: '10px 12px', fontSize: '12.5px', color: canEditStatus ? '#f5f4fb' : '#9a97b8', outline: 'none' }"></textarea>
                 <div v-if="noteRequired" style="font-size:11px; color:#ff8f98; margin-top:4px;">Obrigatória para marcar como concluída.</div>
               </div>
             </div>

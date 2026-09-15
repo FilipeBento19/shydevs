@@ -26,14 +26,15 @@ export const auth = {
     return res.person
   },
   async logout() {
-    try {
-      await api.logout()
-    } catch (e) {
-      // token might already be invalid; clear locally regardless
-    }
+    const logoutRequest = api.logout()
     state.token = null
     state.person = null
     persist()
+    try {
+      await logoutRequest
+    } catch (e) {
+      // token might already be invalid; the local session is already clear
+    }
   },
   setPerson(person) {
     state.person = person

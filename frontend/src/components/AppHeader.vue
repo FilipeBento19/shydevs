@@ -21,10 +21,11 @@ const canEdit = computed(() => !!auth.state.person?.is_admin)
 const BASE_NAV_ITEMS = [
   { key: 'home', label: 'Home', icon: 'fi-sr-home' },
   { key: 'board', label: 'Quadro de Tarefas', icon: 'fi-sr-table-list' },
-  { key: 'dashboard', label: 'Dashboard', icon: 'fi-sr-chart-simple' },
 ]
 const navItems = computed(() => {
-  const items = auth.isLoggedIn ? [...BASE_NAV_ITEMS, { key: 'history', label: 'Histórico', icon: 'fi-sr-clock' }] : BASE_NAV_ITEMS
+  const items = auth.isLoggedIn
+    ? [...BASE_NAV_ITEMS, { key: 'dashboard', label: 'Dashboard', icon: 'fi-sr-chart-simple' }, { key: 'history', label: 'Histórico', icon: 'fi-sr-clock' }]
+    : BASE_NAV_ITEMS
   return canEdit.value ? [...items, { key: 'team', label: 'Equipe', icon: 'fi-sr-users' }] : items
 })
 const activeNav = computed(() => route.meta.nav || 'board')
@@ -208,7 +209,7 @@ defineExpose({ mascot })
         aria-haspopup="menu"
         :aria-expanded="accountOpen"
         style="border:none; background:transparent; cursor:pointer; display:flex; align-items:center; gap:7px; padding:2px;">
-        <div :style="personAvatarStyle(auth.state.person, 28)" aria-hidden="true"></div>
+        <div :key="auth.state.person?.id" :style="personAvatarStyle(auth.state.person, 28)" aria-hidden="true"></div>
       </button>
       <Transition :css="false" @enter="popEnter" @leave="popLeave">
         <div v-if="accountOpen" role="menu" @click.stop style="position:absolute; right:0; top:38px; background:#14141d; border:1px solid #26263a; border-radius:10px; padding:8px; width:190px; z-index:500; box-shadow:0 14px 40px rgba(0,0,0,.5);">

@@ -174,7 +174,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     permission_classes = [TaskPermission]
 
     def get_permissions(self):
-        if self.action == 'bulk_update':
+        if self.action in ('bulk_update', 'dashboard'):
             return [IsAuthenticated()]
         return super().get_permissions()
 
