@@ -1,6 +1,7 @@
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
+from . import discord
 from .models import Activity, Attachment, Status, Subtask, Task
 
 
@@ -17,7 +18,10 @@ def stash_previous_task(sender, instance, **kwargs):
     if not instance.pk:
         instance._previous = None
         return
-    instance._previous = Task.objects.select_related('assignee').filter(pk=instance.pk).first()
+    previous = Task.objects.select_related('assignee').filter(pk=instance.pk).first()
+    instance._previous = previous
+    if previous and previous.due_date != instance.due_date:
+        instance.overdue_notified = False
 
 
 @receiver(post_save, sender=Task)
@@ -128,6 +132,12 @@ def log_attachment_activity(sender, instance, created, **kwargs):
         message=f'{actor_name(instance.uploaded_by)} anexou “{instance.caption or name}” em {instance.task.code}.',
         details={'arquivo': name, 'legenda': instance.caption or 'Sem legenda'},
     )
+
+
+@receiver(post_save, sender=Activity)
+def notify_discord_on_activity(sender, instance, created, **kwargs):
+    if created:
+        discord.notify(instance)
 
 
 @receiver(post_delete, sender=Attachment)

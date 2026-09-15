@@ -98,6 +98,10 @@ class Task(models.Model):
     checked = models.BooleanField(default=False)
     completion_note = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
+    # Set by the notify_overdue command once it's posted an overdue notice for
+    # the task's current due_date, so it doesn't re-notify every run; reset
+    # whenever due_date changes (see signals.stash_previous_task).
+    overdue_notified = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-created_at']
@@ -137,6 +141,7 @@ class Activity(models.Model):
         TASK_UPDATED = 'task_updated', 'Tarefa atualizada'
         CHECKLIST = 'checklist', 'Checklist'
         COMMENT = 'comment', 'Comentário'
+        OVERDUE = 'overdue', 'Atraso'
         ATTACHMENT = 'attachment', 'Anexo'
         TEAM = 'team', 'Equipe'
         SETTINGS = 'settings', 'Configuração'

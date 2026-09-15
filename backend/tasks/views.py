@@ -1,5 +1,7 @@
 import os
+from io import StringIO
 
+from django.core.management import call_command
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import permissions, status as http_status, viewsets
@@ -749,3 +751,25 @@ class BootstrapAdminView(APIView):
             person.roles.add(role_obj)
 
         return Response({'detail': f'Admin "{person.name}" pronto no projeto "{project.name}".'})
+
+
+class CheckOverdueView(APIView):
+    """Triggers the notify_overdue management command over HTTP, so a free
+    external scheduler (cron-job.org, GitHub Actions, UptimeRobot, etc.) can
+    ping it periodically without needing Render's paid Cron Jobs. Disabled
+    unless CRON_SECRET is set in the environment; requires that exact secret."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        configured_secret = os.environ.get('CRON_SECRET')
+        if not configured_secret:
+            return Response({'detail': 'Não encontrado.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        secret = request.data.get('secret') or request.query_params.get('secret') or ''
+        if secret != configured_secret:
+            return Response({'detail': 'Não encontrado.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        out = StringIO()
+        call_command('notify_overdue', stdout=out)
+        return Response({'detail': out.getvalue().strip()})

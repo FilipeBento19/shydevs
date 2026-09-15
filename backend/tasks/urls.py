@@ -2,8 +2,8 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    ActivityViewSet, AttachmentViewSet, BootstrapAdminView, CommentViewSet, LoginView, LogoutView,
-    MeView, PersonViewSet, ProjectViewSet, RoleViewSet, SubtaskViewSet, TaskViewSet,
+    ActivityViewSet, AttachmentViewSet, BootstrapAdminView, CheckOverdueView, CommentViewSet, LoginView,
+    LogoutView, MeView, PersonViewSet, ProjectViewSet, RoleViewSet, SubtaskViewSet, TaskViewSet,
 )
 
 router = DefaultRouter()
@@ -21,4 +21,5 @@ urlpatterns = [
     path('auth/logout/', LogoutView.as_view()),
     path('auth/me/', MeView.as_view()),
     path('bootstrap-admin/', BootstrapAdminView.as_view()),
+    path('cron/check-overdue/', CheckOverdueView.as_view()),
 ] + router.urls
