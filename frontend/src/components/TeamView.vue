@@ -4,7 +4,7 @@ import { api } from '../api'
 import { listEnter, listLeave } from '../motion'
 import { initials, roleIcon } from '../utils'
 import { tasksVersion } from '../taskBus'
-import CustomSelect from './CustomSelect.vue'
+import MultiRoleSelect from './MultiRoleSelect.vue'
 
 const emit = defineEmits(['changed'])
 
@@ -17,12 +17,15 @@ const error = ref('')
 const submitting = ref(false)
 const confirmDeleteId = ref(null)
 
-const form = reactive({ name: '', role: 'Modelador', password: '', is_admin: false })
+const form = reactive({ name: '', roles: [], password: '', is_admin: false })
 
 const adminCount = computed(() => people.value.filter((p) => p.is_admin).length)
 
 function roleColor(name) {
   return (roles.value.find((r) => r.name === name) || {}).color || '#9a9ab0'
+}
+function firstRoleColor(person) {
+  return roleColor(person.roles?.[0])
 }
 
 async function load() {
@@ -61,12 +64,13 @@ async function addPerson() {
   try {
     const created = await api.createPerson({
       name: form.name.trim(),
-      role: form.role,
+      roles: form.roles,
       password: form.password || undefined,
       is_admin: form.is_admin,
     })
     people.value.push(created)
     form.name = ''
+    form.roles = []
     form.password = ''
     form.is_admin = false
     emit('changed')
@@ -77,15 +81,14 @@ async function addPerson() {
   }
 }
 
-async function updatePersonRole(person, newRole) {
-  if (!newRole || newRole === person.role) return
+async function updatePersonRoles(person, newRoles) {
   error.value = ''
   try {
-    const updated = await api.updatePerson(person.id, { role: newRole })
+    const updated = await api.updatePerson(person.id, { roles: newRoles })
     people.value = people.value.map((p) => (p.id === updated.id ? updated : p))
     emit('changed')
   } catch (e) {
-    error.value = 'Não foi possível alterar o cargo dessa pessoa.'
+    error.value = e.message || 'Não foi possível alterar os cargos dessa pessoa.'
   }
 }
 
@@ -171,14 +174,14 @@ async function removePerson(person) {
         <div v-else-if="!people.length" style="padding:20px; font-size:12.5px; color:#8b899f;">Ninguém cadastrado ainda. Adicione a primeira pessoa ao lado.</div>
         <TransitionGroup v-else tag="div" @enter="listEnter" @leave="listLeave" :css="false">
           <div v-for="(p, i) in people" :key="p.id" :data-index="i" style="display:flex; align-items:center; gap:10px; padding:11px 16px; border-bottom:1px solid #1a1a25;">
-            <span :style="{ width: '30px', height: '30px', flex: 'none', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '800', color: '#0a0a10', background: roleColor(p.role), backgroundImage: p.photo ? `url(${p.photo})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' }">{{ p.photo ? '' : initials(p.name) }}</span>
+            <span :style="{ width: '30px', height: '30px', flex: 'none', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '800', color: '#0a0a10', background: firstRoleColor(p), backgroundImage: p.photo ? `url(${p.photo})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' }">{{ p.photo ? '' : initials(p.name) }}</span>
             <div style="flex:1; min-width:0;">
               <div style="font-size:12.5px; font-weight:700; color:#f5f4fb; display:flex; align-items:center; gap:6px;">
                 {{ p.name }}
                 <span v-if="p.is_admin" style="font-size:9.5px; font-weight:700; letter-spacing:.04em; color:#b3aaff; background:rgba(124,111,255,.16); border-radius:999px; padding:2px 7px;">ADMIN</span>
               </div>
-              <div style="width:150px; margin-top:3px;">
-                <CustomSelect :model-value="p.role" :options="roleOptions" width="100%" label="Cargo" @update:model-value="(v) => updatePersonRole(p, v)" />
+              <div style="width:220px; margin-top:3px;">
+                <MultiRoleSelect :model-value="p.roles || []" :options="roleOptions" width="100%" label="Cargos" @update:model-value="(v) => updatePersonRoles(p, v)" />
               </div>
             </div>
             <div style="display:flex; gap:6px; flex:none;">
@@ -204,8 +207,8 @@ async function removePerson(person) {
             <input id="team-name" v-model="form.name" @keyup.enter="addPerson" placeholder="Nome da pessoa" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none;" />
           </div>
           <div>
-            <div id="team-role-label" style="font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Cargo</div>
-            <CustomSelect v-model="form.role" :options="roleOptions" width="100%" label="Cargo" />
+            <div id="team-role-label" style="font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Cargos</div>
+            <MultiRoleSelect v-model="form.roles" :options="roleOptions" width="100%" label="Cargos" />
           </div>
           <div>
             <label for="team-password" style="display:block; font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Senha (opcional)</label>

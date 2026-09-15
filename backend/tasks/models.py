@@ -33,7 +33,7 @@ class Status(models.TextChoices):
 
 class Person(models.Model):
     name = models.CharField(max_length=120)
-    role = models.CharField(max_length=40)
+    roles = models.ManyToManyField(Role, related_name='people', blank=True)
     password = models.CharField(max_length=128, blank=True)
     photo = models.ImageField(upload_to='avatars/', blank=True, null=True)
     is_admin = models.BooleanField(default=False)

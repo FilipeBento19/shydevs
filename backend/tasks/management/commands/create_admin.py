@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
 
-from tasks.models import Person
+from tasks.models import Person, Role
 
 
 class Command(BaseCommand):
@@ -26,11 +26,14 @@ class Command(BaseCommand):
         person = Person.objects.filter(name__iexact=name).first()
         created = person is None
         if created:
-            person = Person(name=name, role=role, is_admin=True)
+            person = Person(name=name, is_admin=True)
         else:
             person.is_admin = True
         person.set_password(password)
         person.save()
+        role_obj = Role.objects.filter(name=role).first()
+        if role_obj and not person.roles.filter(pk=role_obj.pk).exists():
+            person.roles.add(role_obj)
 
         action = 'criado' if created else 'atualizado'
         self.stdout.write(self.style.SUCCESS(

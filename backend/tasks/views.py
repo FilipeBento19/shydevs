@@ -156,7 +156,7 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        in_use = Task.objects.filter(role=instance.name).exists() or Person.objects.filter(role=instance.name).exists()
+        in_use = Task.objects.filter(role=instance.name).exists() or instance.people.exists()
         if in_use:
             return Response(
                 {'detail': 'Esse cargo está em uso por pessoas ou tarefas e não pode ser removido.'},
@@ -240,7 +240,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     def balance(self, request):
         best = None
         for role in Role.objects.all():
-            members = Person.objects.filter(role=role.name)
+            members = Person.objects.filter(roles=role).distinct()
             if members.count() < 2:
                 continue
             load = []
@@ -275,11 +275,11 @@ class TaskViewSet(viewsets.ModelViewSet):
 
         overdue = sum(1 for t in tasks if t.due_date and t.due_date < timezone.now().date() and t.status != Status.CONCLUIDA)
 
-        people = list(Person.objects.all())
+        people = list(Person.objects.prefetch_related('roles').all())
         workload = [
             {
                 'name': p.name,
-                'role': p.role,
+                'roles': [r.name for r in p.roles.all()],
                 'open': sum(1 for t in tasks if t.assignee_id == p.id and t.status != Status.CONCLUIDA),
                 'done': sum(1 for t in tasks if t.assignee_id == p.id and t.status == Status.CONCLUIDA),
             }
@@ -422,11 +422,14 @@ class BootstrapAdminView(APIView):
 
         person = Person.objects.filter(name__iexact=name).first()
         if person is None:
-            person = Person(name=name, role=role, is_admin=True)
+            person = Person(name=name, is_admin=True)
         else:
             person.is_admin = True
         person.set_password(password)
         person.save()
+        role_obj = Role.objects.filter(name=role).first()
+        if role_obj and not person.roles.filter(pk=role_obj.pk).exists():
+            person.roles.add(role_obj)
 
         return Response({'detail': f'Admin "{person.name}" pronto.'})
 

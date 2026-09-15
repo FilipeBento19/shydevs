@@ -41,10 +41,10 @@ const form = reactive({
 const submitting = ref(false)
 const formError = ref('')
 
-const formPeople = computed(() => people.value.filter((p) => p.role === form.role))
+const formPeople = computed(() => people.value.filter((p) => (p.roles || []).includes(form.role)))
 const assigneeOptions = computed(() => formPeople.value.map((p) => ({
   value: p.id,
-  label: `${p.name} — ${p.role} (${tasks.value.filter((t) => t.assignee === p.id && t.status !== 'Concluída').length} abertas)`,
+  label: `${p.name} — ${(p.roles || []).join(', ')} (${tasks.value.filter((t) => t.assignee === p.id && t.status !== 'Concluída').length} abertas)`,
 })))
 
 function onRoleChange(name) {

@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from tasks.models import Activity, AuthToken, Person, Subtask, Task
+from tasks.models import Activity, AuthToken, Person, Role, Subtask, Task
 
 ADMIN_NAME = 'Akanub'
 ADMIN_PASSWORD = 'akanub123'
@@ -17,9 +17,12 @@ class Command(BaseCommand):
         AuthToken.objects.all().delete()
         Person.objects.all().delete()
 
-        admin = Person(name=ADMIN_NAME, role=ADMIN_ROLE, is_admin=True)
+        admin = Person(name=ADMIN_NAME, is_admin=True)
         admin.set_password(ADMIN_PASSWORD)
         admin.save()
+        role = Role.objects.filter(name=ADMIN_ROLE).first()
+        if role:
+            admin.roles.add(role)
 
         self.stdout.write(self.style.SUCCESS('Backend limpo. Nenhuma tarefa ou pessoa de demonstração restante.'))
         self.stdout.write(self.style.WARNING(

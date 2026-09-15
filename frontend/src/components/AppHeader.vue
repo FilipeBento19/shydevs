@@ -211,7 +211,7 @@ defineExpose({ mascot })
             {{ auth.state.person?.name }}
             <span v-if="canEdit" style="font-size:9px; font-weight:700; letter-spacing:.04em; color:#b3aaff; background:rgba(124,111,255,.16); border-radius:999px; padding:2px 6px;">ADMIN</span>
           </div>
-          <div style="font-size:11px; color:#8b899f; padding:0 8px 8px;">{{ auth.state.person?.role }}</div>
+          <div style="font-size:11px; color:#8b899f; padding:0 8px 8px;">{{ (auth.state.person?.roles || []).join(', ') || 'Sem cargo' }}</div>
           <label for="account-photo-input" style="display:flex; align-items:center; gap:8px; font-size:12px; color:#c7c5dc; padding:8px; border-radius:7px; cursor:pointer;">
             <i class="fi fi-sr-user-add" aria-hidden="true"></i>Alterar foto
             <input id="account-photo-input" type="file" accept="image/*" @change="onPhotoChange" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);" />

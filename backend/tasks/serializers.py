@@ -8,26 +8,45 @@ class PersonSerializer(serializers.ModelSerializer):
     photo = serializers.ImageField(read_only=True)
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     is_admin = serializers.BooleanField(required=False)
+    roles = serializers.ListField(child=serializers.CharField(), required=False, write_only=True)
 
     class Meta:
         model = Person
-        fields = ['id', 'name', 'role', 'photo', 'password', 'is_admin']
+        fields = ['id', 'name', 'roles', 'photo', 'password', 'is_admin']
+
+    def _resolve_roles(self, names):
+        qs = Role.objects.filter(name__in=names)
+        missing = set(names) - {r.name for r in qs}
+        if missing:
+            raise serializers.ValidationError({'roles': f'Cargo(s) inexistente(s): {", ".join(sorted(missing))}'})
+        return qs
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['roles'] = list(instance.roles.values_list('name', flat=True))
+        return data
 
     def create(self, validated_data):
         raw_password = validated_data.pop('password', None)
+        role_names = validated_data.pop('roles', [])
         person = Person(**validated_data)
         if raw_password:
             person.set_password(raw_password)
         person.save()
+        if role_names:
+            person.roles.set(self._resolve_roles(role_names))
         return person
 
     def update(self, instance, validated_data):
         raw_password = validated_data.pop('password', None)
+        role_names = validated_data.pop('roles', None)
         for k, v in validated_data.items():
             setattr(instance, k, v)
         if raw_password:
             instance.set_password(raw_password)
         instance.save()
+        if role_names is not None:
+            instance.roles.set(self._resolve_roles(role_names))
         return instance
 
 
@@ -43,8 +62,10 @@ class RoleSerializer(serializers.ModelSerializer):
         instance.save()
         new_name = instance.name
         if new_name != old_name:
+            # Person.roles is a real relation, so renaming here already
+            # reflects there automatically. Task.role is still a plain
+            # string field, so it needs an explicit cascade.
             Task.objects.filter(role=old_name).update(role=new_name)
-            Person.objects.filter(role=old_name).update(role=new_name)
         return instance
 
 

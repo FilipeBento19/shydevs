@@ -5,8 +5,12 @@ from .models import Activity, Attachment, AuthToken, Person, ProjectSettings, Su
 
 @admin.register(Person)
 class PersonAdmin(admin.ModelAdmin):
-    list_display = ['name', 'role', 'is_admin']
-    list_filter = ['role', 'is_admin']
+    list_display = ['name', 'role_list', 'is_admin']
+    list_filter = ['roles', 'is_admin']
+
+    def role_list(self, obj):
+        return ', '.join(obj.roles.values_list('name', flat=True))
+    role_list.short_description = 'Cargos'
 
 
 @admin.register(Task)

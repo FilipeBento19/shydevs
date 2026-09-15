@@ -86,7 +86,7 @@ watch(tasksVersion, async () => {
   }
 })
 
-const formPeople = computed(() => people.value.filter((p) => p.role === form.role))
+const formPeople = computed(() => people.value.filter((p) => (p.roles || []).includes(form.role)))
 const roleOptions = computed(() => roles.value.map((r) => ({ value: r.name, label: r.name, icon: roleIcon(r.name), color: r.color })))
 const assigneeOptions = computed(() => [
   { value: null, label: 'Sem responsável' },
