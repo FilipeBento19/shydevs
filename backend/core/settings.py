@@ -47,9 +47,12 @@ INSTALLED_APPS = [
 ]
 
 # Cloudinary is only wired in when credentials are provided (production media storage).
+# Deliberately NOT added to INSTALLED_APPS: the 'cloudinary_storage' app overrides
+# Django's collectstatic command with a version that breaks WhiteNoise's manifest
+# post-processing. We only need its storage *class* (imported directly by STORAGES
+# below), not the app itself — the cloudinary SDK reads CLOUDINARY_URL on import
+# regardless of whether it's registered as a Django app.
 USE_CLOUDINARY = bool(os.environ.get('CLOUDINARY_URL'))
-if USE_CLOUDINARY:
-    INSTALLED_APPS = ['cloudinary_storage'] + INSTALLED_APPS + ['cloudinary']
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -122,9 +125,14 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Both the new (STORAGES) and legacy (STATICFILES_STORAGE / DEFAULT_FILE_STORAGE)
+# settings are set: django-cloudinary-storage's management commands still read the
+# old-style attributes directly and error out if they're absent.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 STORAGES = {
     'staticfiles': {
-        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+        'BACKEND': STATICFILES_STORAGE,
     },
 }
 
@@ -132,7 +140,8 @@ STORAGES = {
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 if USE_CLOUDINARY:
-    STORAGES['default'] = {'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage'}
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    STORAGES['default'] = {'BACKEND': DEFAULT_FILE_STORAGE}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
