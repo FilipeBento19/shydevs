@@ -229,11 +229,12 @@ function setQuickDate(offsetDays) {
           </div>
         </div>
         <div v-if="canEditStatus" style="display:flex; gap:8px; flex:none;">
-          <button v-if="canEdit" @click="remove" :disabled="deleting" :style="{ border: '1px solid rgba(224,79,95,.4)', background: confirmDelete ? 'rgba(224,79,95,.18)' : 'transparent', borderRadius: '9px', padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', color: '#ff8f98', cursor: 'pointer' }">
-            <i class="fi fi-sr-trash-can-list" aria-hidden="true"></i> {{ confirmDelete ? 'Confirmar exclusão?' : 'Excluir' }}
+          <button v-if="canEdit" @click="remove" :disabled="deleting" :style="{ border: '1px solid rgba(224,79,95,.4)', background: confirmDelete ? 'rgba(224,79,95,.18)' : 'transparent', borderRadius: '9px', padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', color: '#ff8f98', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }">
+            <span v-if="deleting" class="btn-spinner" aria-hidden="true"></span>
+            <i v-else class="fi fi-sr-trash-can-list" aria-hidden="true"></i> {{ deleting ? 'Excluindo…' : confirmDelete ? 'Confirmar exclusão?' : 'Excluir' }}
           </button>
-          <button @click="save" :disabled="saving || noteRequired" :style="{ border: 'none', background: '#7c6fff', color: '#0a0a10', borderRadius: '9px', padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', cursor: noteRequired ? 'not-allowed' : 'pointer', opacity: noteRequired ? 0.6 : 1 }">
-            {{ saving ? 'Salvando…' : savedFlash ? '✓ Salvo' : canEdit ? 'Salvar alterações' : 'Salvar status' }}
+          <button @click="save" :disabled="saving || noteRequired" :style="{ border: 'none', background: '#7c6fff', color: '#0a0a10', borderRadius: '9px', padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', cursor: noteRequired ? 'not-allowed' : 'pointer', opacity: noteRequired ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '6px' }">
+            <span v-if="saving" class="btn-spinner" aria-hidden="true"></span>{{ saving ? 'Salvando…' : savedFlash ? '✓ Salvo' : canEdit ? 'Salvar alterações' : 'Salvar status' }}
           </button>
         </div>
       </div>

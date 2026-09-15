@@ -133,7 +133,8 @@ async function submit() {
         <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:22px;">
           <button @click="goBack" style="border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 16px; font-size:12.5px; font-weight:700; color:#c7c5dc; cursor:pointer;">Cancelar</button>
           <button @click="submit" :disabled="submitting" style="border:none; background:#7c6fff; color:#0a0a10; border-radius:9px; padding:10px 18px; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;">
-            <i class="fi fi-sr-plus-small" aria-hidden="true"></i>{{ submitting ? 'Atribuindo…' : 'Atribuir Tarefa' }}
+            <span v-if="submitting" class="btn-spinner" aria-hidden="true"></span>
+            <i v-else class="fi fi-sr-plus-small" aria-hidden="true"></i>{{ submitting ? 'Atribuindo…' : 'Atribuir Tarefa' }}
           </button>
         </div>
       </div>

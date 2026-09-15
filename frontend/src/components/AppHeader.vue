@@ -225,8 +225,8 @@ defineExpose({ mascot })
             <input id="new-password-input" v-model="newPasswordDraft" type="password" autofocus placeholder="Nova senha"
               style="width:100%; box-sizing:border-box; border:1px solid #7c6fff; background:#0e0e14; border-radius:7px; padding:7px 9px; font-size:12px; color:#f5f4fb; outline:none;" />
             <div style="display:flex; gap:6px;">
-              <button type="submit" :disabled="!newPasswordDraft || savingPassword" style="flex:1; border:none; background:#7c6fff; color:#0a0a10; border-radius:7px; padding:7px 0; font-size:11.5px; font-weight:700; cursor:pointer;">
-                {{ savingPassword ? 'Salvando…' : passwordSaved ? '✓ Trocada' : 'Salvar' }}
+              <button type="submit" :disabled="!newPasswordDraft || savingPassword" style="flex:1; border:none; background:#7c6fff; color:#0a0a10; border-radius:7px; padding:7px 0; font-size:11.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+                <span v-if="savingPassword" class="btn-spinner" aria-hidden="true"></span>{{ savingPassword ? 'Salvando…' : passwordSaved ? '✓ Trocada' : 'Salvar' }}
               </button>
               <button type="button" @click="changingPassword = false" style="border:1px solid #26263a; background:transparent; color:#8b899f; border-radius:7px; padding:7px 10px; font-size:11.5px; cursor:pointer;">Cancelar</button>
             </div>

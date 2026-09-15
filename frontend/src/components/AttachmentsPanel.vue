@@ -168,7 +168,8 @@ function fmtDate(iso) {
       <div v-if="error" style="font-size:11.5px; color:#ff8f98;">{{ error }}</div>
 
       <button @click="submit" :disabled="submitting" type="button" style="border:none; background:#7c6fff; color:#0a0a10; border-radius:8px; padding:8px 12px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
-        <i class="fi fi-sr-cloud-upload-alt" aria-hidden="true"></i>{{ submitting ? 'Enviando…' : 'Enviar anexo' }}
+        <span v-if="submitting" class="btn-spinner" aria-hidden="true"></span>
+        <i v-else class="fi fi-sr-cloud-upload-alt" aria-hidden="true"></i>{{ submitting ? 'Enviando…' : 'Enviar anexo' }}
       </button>
     </div>
     <div v-else style="font-size:11.5px; color:#8f8da8;">Faça login para anexar imagens, vídeos ou links de referência.</div>

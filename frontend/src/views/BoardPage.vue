@@ -173,7 +173,10 @@ function clearSelection() {
   selectedIds.value = []
 }
 
+const bulkActionLoading = ref(null) // status string, 'delete', or null
+
 async function bulkSetStatus(status) {
+  bulkActionLoading.value = status
   try {
     await api.bulkUpdateTasks(selectedIds.value, { status })
     tasks.value = tasks.value.map((t) => (selectedIds.value.includes(t.id) ? { ...t, status } : t))
@@ -183,10 +186,13 @@ async function bulkSetStatus(status) {
     bumpTasks()
   } catch (e) {
     error.value = 'Não foi possível atualizar as tarefas selecionadas.'
+  } finally {
+    bulkActionLoading.value = null
   }
 }
 async function bulkDelete() {
   if (!canEdit.value) return
+  bulkActionLoading.value = 'delete'
   try {
     await api.bulkDeleteTasks(selectedIds.value)
     tasks.value = tasks.value.filter((t) => !selectedIds.value.includes(t.id))
@@ -194,6 +200,8 @@ async function bulkDelete() {
     bumpTasks()
   } catch (e) {
     error.value = 'Não foi possível excluir as tarefas selecionadas.'
+  } finally {
+    bulkActionLoading.value = null
   }
 }
 
@@ -272,9 +280,15 @@ async function onKanbanStatusChange(task, status) {
 
     <div v-if="isSelectedAny() && boardMode === 'tabela'" style="margin:12px 26px 0; background:rgba(124,111,255,.10); border:1px solid rgba(124,111,255,.3); border-radius:10px; padding:9px 12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       <span style="font-size:12px; font-weight:700; color:#cfc9ff;">{{ selectedIds.length }} selecionada(s)</span>
-      <button @click="bulkSetStatus('Em andamento')" style="border:1px solid #26263a; background:#0e0e14; color:#c7c5dc; border-radius:7px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer;">Em andamento</button>
-      <button v-if="canEdit" @click="bulkSetStatus('Concluída')" style="border:1px solid #26263a; background:#0e0e14; color:#c7c5dc; border-radius:7px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer;">Concluir</button>
-      <button v-if="canEdit" @click="bulkDelete" style="border:1px solid rgba(224,79,95,.4); background:transparent; color:#ff8f98; border-radius:7px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer;">Excluir</button>
+      <button @click="bulkSetStatus('Em andamento')" :disabled="!!bulkActionLoading" style="border:1px solid #26263a; background:#0e0e14; color:#c7c5dc; border-radius:7px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+        <span v-if="bulkActionLoading === 'Em andamento'" class="btn-spinner" aria-hidden="true"></span>Em andamento
+      </button>
+      <button v-if="canEdit" @click="bulkSetStatus('Concluída')" :disabled="!!bulkActionLoading" style="border:1px solid #26263a; background:#0e0e14; color:#c7c5dc; border-radius:7px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+        <span v-if="bulkActionLoading === 'Concluída'" class="btn-spinner" aria-hidden="true"></span>Concluir
+      </button>
+      <button v-if="canEdit" @click="bulkDelete" :disabled="!!bulkActionLoading" style="border:1px solid rgba(224,79,95,.4); background:transparent; color:#ff8f98; border-radius:7px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+        <span v-if="bulkActionLoading === 'delete'" class="btn-spinner" aria-hidden="true"></span>Excluir
+      </button>
       <button @click="clearSelection" style="margin-left:auto; border:none; background:transparent; color:#8b899f; font-size:11.5px; cursor:pointer;">Limpar seleção</button>
     </div>
 

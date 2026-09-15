@@ -66,8 +66,8 @@ async function submit() {
           {{ error }}
         </div>
 
-        <button type="submit" :disabled="loading" style="margin-top:6px; border:none; background:#7c6fff; color:#0a0a10; border-radius:9px; padding:10px 16px; font-size:12.5px; font-weight:700; cursor:pointer;">
-          {{ loading ? 'Entrando…' : 'Entrar' }}
+        <button type="submit" :disabled="loading" style="margin-top:6px; border:none; background:#7c6fff; color:#0a0a10; border-radius:9px; padding:10px 16px; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <span v-if="loading" class="btn-spinner" aria-hidden="true"></span>{{ loading ? 'Entrando…' : 'Entrar' }}
         </button>
         <button type="button" @click="$emit('close')" style="border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 16px; font-size:12.5px; font-weight:700; color:#c7c5dc; cursor:pointer;">Cancelar</button>
       </form>

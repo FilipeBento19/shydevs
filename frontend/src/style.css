@@ -88,6 +88,26 @@ textarea:focus-visible,
   background-color: #46445f;
 }
 
+/* Small inline spinner for buttons awaiting a backend response. Uses
+   currentColor so it automatically matches each button's own text color
+   (dark-on-purple primary buttons, light-on-dark secondary ones, etc). */
+.btn-spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  opacity: 0.85;
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -119,12 +119,14 @@ async function addRole() {
   }
 }
 
+const deletingRoleId = ref(null)
 async function removeRole(role) {
   roleError.value = ''
   if (confirmDeleteRoleId.value !== role.id) {
     confirmDeleteRoleId.value = role.id
     return
   }
+  deletingRoleId.value = role.id
   try {
     await api.deleteRole(role.id)
     roles.value = roles.value.filter((r) => r.id !== role.id)
@@ -132,29 +134,37 @@ async function removeRole(role) {
   } catch (e) {
     roleError.value = e.message || 'Não foi possível remover esse cargo.'
     confirmDeleteRoleId.value = null
+  } finally {
+    deletingRoleId.value = null
   }
 }
 
+const togglingAdminId = ref(null)
 async function toggleAdmin(person) {
   error.value = ''
   if (person.is_admin && adminCount.value <= 1) {
     error.value = 'Precisa existir pelo menos um administrador.'
     return
   }
+  togglingAdminId.value = person.id
   try {
     const updated = await api.updatePerson(person.id, { is_admin: !person.is_admin })
     people.value = people.value.map((p) => (p.id === updated.id ? updated : p))
     emit('changed')
   } catch (e) {
     error.value = 'Não foi possível alterar o nível dessa pessoa.'
+  } finally {
+    togglingAdminId.value = null
   }
 }
 
+const deletingPersonId = ref(null)
 async function removePerson(person) {
   if (confirmDeleteId.value !== person.id) {
     confirmDeleteId.value = person.id
     return
   }
+  deletingPersonId.value = person.id
   try {
     await api.deletePerson(person.id)
     people.value = people.value.filter((p) => p.id !== person.id)
@@ -162,6 +172,8 @@ async function removePerson(person) {
     emit('changed')
   } catch (e) {
     error.value = 'Não foi possível remover essa pessoa.'
+  } finally {
+    deletingPersonId.value = null
   }
 }
 </script>
@@ -186,13 +198,15 @@ async function removePerson(person) {
               </div>
             </div>
             <div style="display:flex; gap:6px; flex:none;">
-              <button @click="toggleAdmin(p)"
-                :style="{ border: '1px solid #26263a', background: 'transparent', color: p.is_admin ? '#8b899f' : '#b3aaff', borderRadius: '7px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }">
-                <i :class="`fi ${p.is_admin ? 'fi-sr-user-minus' : 'fi-sr-user-shield'}`" aria-hidden="true"></i> {{ p.is_admin ? 'Tirar admin' : 'Tornar admin' }}
+              <button @click="toggleAdmin(p)" :disabled="togglingAdminId === p.id"
+                :style="{ border: '1px solid #26263a', background: 'transparent', color: p.is_admin ? '#8b899f' : '#b3aaff', borderRadius: '7px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '5px' }">
+                <span v-if="togglingAdminId === p.id" class="btn-spinner" aria-hidden="true"></span>
+                <i v-else :class="`fi ${p.is_admin ? 'fi-sr-user-minus' : 'fi-sr-user-shield'}`" aria-hidden="true"></i> {{ p.is_admin ? 'Tirar admin' : 'Tornar admin' }}
               </button>
-              <button v-if="!p.is_admin" @click="removePerson(p)"
-                :style="{ border: '1px solid rgba(224,79,95,.4)', background: confirmDeleteId === p.id ? 'rgba(224,79,95,.18)' : 'transparent', color: '#ff8f98', borderRadius: '7px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }">
-                <i class="fi fi-sr-trash-can-list" aria-hidden="true"></i> {{ confirmDeleteId === p.id ? 'Confirmar?' : 'Remover' }}
+              <button v-if="!p.is_admin" @click="removePerson(p)" :disabled="deletingPersonId === p.id"
+                :style="{ border: '1px solid rgba(224,79,95,.4)', background: confirmDeleteId === p.id ? 'rgba(224,79,95,.18)' : 'transparent', color: '#ff8f98', borderRadius: '7px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '5px' }">
+                <span v-if="deletingPersonId === p.id" class="btn-spinner" aria-hidden="true"></span>
+                <i v-else class="fi fi-sr-trash-can-list" aria-hidden="true"></i> {{ deletingPersonId === p.id ? 'Removendo…' : confirmDeleteId === p.id ? 'Confirmar?' : 'Remover' }}
               </button>
             </div>
           </div>
@@ -221,7 +235,8 @@ async function removePerson(person) {
           </div>
           <div v-if="error" style="padding:8px 10px; background:rgba(224,79,95,.14); border:1px solid rgba(224,79,95,.35); border-radius:8px; color:#ff8f98; font-size:11.5px; font-weight:600;">{{ error }}</div>
           <button @click="addPerson" :disabled="submitting" style="border:none; background:#7c6fff; color:#0a0a10; border-radius:8px; padding:9px 12px; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
-            <i class="fi fi-sr-plus-small" aria-hidden="true"></i>{{ submitting ? 'Adicionando…' : 'Adicionar' }}
+            <span v-if="submitting" class="btn-spinner" aria-hidden="true"></span>
+            <i v-else class="fi fi-sr-plus-small" aria-hidden="true"></i>{{ submitting ? 'Adicionando…' : 'Adicionar' }}
           </button>
         </div>
       </div>
@@ -232,9 +247,10 @@ async function removePerson(person) {
           <div v-for="r in roles" :key="r.id" :data-index="r.id" style="display:flex; align-items:center; gap:8px; background:#0e0e14; border:1px solid #22222f; border-radius:8px; padding:7px 9px;">
             <span :style="{ width: '12px', height: '12px', flex: 'none', borderRadius: '50%', background: r.color }" aria-hidden="true"></span>
             <span style="flex:1; min-width:0; font-size:12px; font-weight:600; color:#e4e2f1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ r.name }}</span>
-            <button type="button" @click="removeRole(r)" :aria-label="confirmDeleteRoleId === r.id ? `Confirmar remoção de ${r.name}` : `Remover cargo ${r.name}`"
-              :style="{ border: 'none', background: 'transparent', color: confirmDeleteRoleId === r.id ? '#ff8f98' : '#8f8da8', cursor: 'pointer', fontSize: '12px', flex: 'none' }">
-              <i class="fi fi-sr-cross-small" aria-hidden="true"></i>
+            <button type="button" @click="removeRole(r)" :disabled="deletingRoleId === r.id" :aria-label="confirmDeleteRoleId === r.id ? `Confirmar remoção de ${r.name}` : `Remover cargo ${r.name}`"
+              :style="{ border: 'none', background: 'transparent', color: confirmDeleteRoleId === r.id ? '#ff8f98' : '#8f8da8', cursor: 'pointer', fontSize: '12px', flex: 'none', display: 'inline-flex', alignItems: 'center' }">
+              <span v-if="deletingRoleId === r.id" class="btn-spinner" aria-hidden="true"></span>
+              <i v-else class="fi fi-sr-cross-small" aria-hidden="true"></i>
             </button>
           </div>
         </TransitionGroup>
@@ -245,8 +261,9 @@ async function removePerson(person) {
           <input id="new-role-color" v-model="newRoleColor" type="color" style="flex:none; width:32px; height:32px; padding:0; border:1px solid #26263a; background:#0e0e14; border-radius:7px; cursor:pointer;" />
           <label for="new-role-name" class="sr-only">Nome do novo cargo</label>
           <input id="new-role-name" v-model="newRoleName" @keyup.enter="addRole" placeholder="Novo cargo…" style="flex:1; min-width:0; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:8px 10px; font-size:12px; color:#f5f4fb; outline:none;" />
-          <button type="button" @click="addRole" :disabled="addingRole" style="flex:none; border:none; background:#7c6fff; color:#0a0a10; border-radius:8px; padding:8px 10px; font-size:12px; font-weight:700; cursor:pointer;">
-            <i class="fi fi-sr-plus-small" aria-hidden="true"></i>
+          <button type="button" @click="addRole" :disabled="addingRole" style="flex:none; border:none; background:#7c6fff; color:#0a0a10; border-radius:8px; padding:8px 10px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <span v-if="addingRole" class="btn-spinner" aria-hidden="true"></span>
+            <i v-else class="fi fi-sr-plus-small" aria-hidden="true"></i>
           </button>
         </div>
         <div v-if="roleError" style="margin-top:8px; padding:8px 10px; background:rgba(224,79,95,.14); border:1px solid rgba(224,79,95,.35); border-radius:8px; color:#ff8f98; font-size:11.5px; font-weight:600;">{{ roleError }}</div>
