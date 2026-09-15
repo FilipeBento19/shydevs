@@ -54,7 +54,7 @@ function onDropCol(status) {
 </script>
 
 <template>
-  <div style="display:grid; grid-template-columns:repeat(3, minmax(220px, 1fr)); gap:12px; overflow-x:auto;">
+  <div class="nice-scroll" style="display:grid; grid-template-columns:repeat(3, minmax(220px, 1fr)); gap:12px; overflow-x:auto;">
     <div v-for="col in COLUMNS" :key="col.status"
       @dragover.prevent="onDragOverCol(col.status)"
       @drop="onDropCol(col.status)"

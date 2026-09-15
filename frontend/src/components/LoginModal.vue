@@ -46,7 +46,7 @@ async function submit() {
 <template>
   <Teleport to="body">
   <Transition :css="false" @enter="modalEnter" @leave="modalLeave">
-  <div v-if="open" @click="$emit('close')" style="position:fixed; inset:0; background:rgba(3,3,8,.82); display:flex; align-items:center; justify-content:center; padding:24px; z-index:1000; overflow-y:auto;">
+  <div v-if="open" @click="$emit('close')" class="nice-scroll" style="position:fixed; inset:0; background:rgba(3,3,8,.82); display:flex; align-items:center; justify-content:center; padding:24px; z-index:1000; overflow-y:auto;">
     <div class="modal-panel" @click.stop role="dialog" aria-modal="true" aria-labelledby="login-modal-title" style="width:100%; max-width:360px; background:#14141d; border:1px solid #26263a; border-radius:14px; padding:22px; box-shadow:0 24px 70px rgba(0,0,0,.6); margin:auto;">
       <div style="font-size:10.5px; font-weight:800; letter-spacing:.08em; color:#b3aaff; margin-bottom:6px;">● SHYDEVS</div>
       <div id="login-modal-title" style="font-size:19px; font-weight:800; color:#f5f4fb; letter-spacing:-.02em;">Entrar</div>

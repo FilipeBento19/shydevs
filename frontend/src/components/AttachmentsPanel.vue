@@ -23,7 +23,12 @@ const KIND_OPTIONS = [
 ]
 const form = reactive({ kind: 'image', url: '', caption: '' })
 const fileInput = ref(null)
+const selectedFileName = ref('')
 const submitting = ref(false)
+
+function onFileChange(e) {
+  selectedFileName.value = e.target.files?.[0]?.name || ''
+}
 
 async function load() {
   loading.value = true
@@ -63,6 +68,7 @@ async function submit() {
     form.url = ''
     form.caption = ''
     if (fileInput.value) fileInput.value.value = ''
+    selectedFileName.value = ''
     emit('changed')
   } catch (e) {
     error.value = 'Não foi possível enviar o anexo.'
@@ -147,8 +153,13 @@ function fmtDate(iso) {
       <label v-if="form.kind === 'link'" class="sr-only" for="attachment-url">URL do link</label>
       <input v-if="form.kind === 'link'" id="attachment-url" v-model="form.url" placeholder="https://…" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#14141d; border-radius:8px; padding:8px 10px; font-size:12px; color:#f5f4fb; outline:none;" />
       <template v-else>
-        <label class="sr-only" for="attachment-file">{{ form.kind === 'image' ? 'Arquivo de imagem' : 'Arquivo de vídeo' }}</label>
-        <input id="attachment-file" ref="fileInput" type="file" :accept="form.kind === 'image' ? 'image/*' : form.kind === 'video' ? 'video/*' : undefined" style="width:100%; font-size:11.5px; color:#c7c5dc;" />
+        <div style="display:flex; align-items:center; gap:10px;">
+          <label for="attachment-file" style="flex:none; display:inline-flex; align-items:center; gap:6px; border:1px solid #26263a; background:#1c1c28; border-radius:8px; padding:8px 12px; font-size:11.5px; font-weight:700; color:#c7c5dc; cursor:pointer; white-space:nowrap;">
+            <i class="fi fi-sr-folder-upload" aria-hidden="true"></i>Escolher arquivo
+          </label>
+          <input id="attachment-file" ref="fileInput" type="file" @change="onFileChange" :accept="form.kind === 'image' ? 'image/*' : form.kind === 'video' ? 'video/*' : undefined" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);" />
+          <span style="font-size:11.5px; color:#8f8da8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ selectedFileName || 'Nenhum arquivo escolhido' }}</span>
+        </div>
       </template>
 
       <label class="sr-only" for="attachment-caption">Legenda</label>

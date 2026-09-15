@@ -304,7 +304,7 @@ function setQuickDate(offsetDays) {
 
           <div v-if="activities.length" style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">
             <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:8px;">Histórico</div>
-            <TransitionGroup tag="div" @enter="listEnter" :css="false" style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto;">
+            <TransitionGroup tag="div" @enter="listEnter" :css="false" class="nice-scroll" style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto; padding-right:4px;">
               <div v-for="(a, i) in activities" :key="a.id" :data-index="i" style="font-size:11.5px; color:#9a97b8; display:flex; gap:8px;">
                 <i class="fi fi-sr-clock" style="opacity:.6; margin-top:2px;" aria-hidden="true"></i>
                 <span>{{ a.message }} <span style="color:#5f5d78;">· {{ fmtDate(a.created_at) }}</span></span>

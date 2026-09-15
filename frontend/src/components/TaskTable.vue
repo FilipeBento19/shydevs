@@ -29,7 +29,7 @@ function openTask(task) {
 
 <template>
   <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; overflow:hidden;">
-    <div style="overflow-x:auto;">
+    <div class="nice-scroll" style="overflow-x:auto;">
       <div style="min-width:940px;">
         <div style="display:grid; grid-template-columns:34px minmax(0,1fr) 128px 158px 150px 96px 126px; gap:10px; padding:11px 14px; background:#101017; border-bottom:1px solid #1f1f2b; font-size:10.5px; font-weight:700; letter-spacing:.06em; color:#8b899f;">
           <div>
