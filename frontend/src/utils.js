@@ -23,7 +23,7 @@ export function isLate(task) {
 }
 
 export function formatDue(task) {
-  if (!task.due_date) return '—'
+  if (!task.due_date) return 'Sem prazo'
   const due = startOfDay(new Date(`${task.due_date}T00:00:00`))
   const today = startOfDay(new Date())
   const diffDays = Math.round((due - today) / 86400000)
