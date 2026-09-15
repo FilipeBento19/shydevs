@@ -206,7 +206,7 @@ defineExpose({ mascot })
         <div :style="personAvatarStyle(auth.state.person, 28)" aria-hidden="true"></div>
       </button>
       <Transition :css="false" @enter="popEnter" @leave="popLeave">
-        <div v-if="accountOpen" role="menu" style="position:absolute; right:0; top:38px; background:#14141d; border:1px solid #26263a; border-radius:10px; padding:8px; width:190px; z-index:500; box-shadow:0 14px 40px rgba(0,0,0,.5);">
+        <div v-if="accountOpen" role="menu" @click.stop style="position:absolute; right:0; top:38px; background:#14141d; border:1px solid #26263a; border-radius:10px; padding:8px; width:190px; z-index:500; box-shadow:0 14px 40px rgba(0,0,0,.5);">
           <div style="font-size:12px; font-weight:700; color:#f5f4fb; padding:6px 8px; display:flex; align-items:center; gap:6px;">
             {{ auth.state.person?.name }}
             <span v-if="canEdit" style="font-size:9px; font-weight:700; letter-spacing:.04em; color:#b3aaff; background:rgba(124,111,255,.16); border-radius:999px; padding:2px 6px;">ADMIN</span>
