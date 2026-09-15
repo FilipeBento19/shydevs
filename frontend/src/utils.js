@@ -103,6 +103,7 @@ const ROLE_ICONS = {
   'Ui Maker': 'fi-sr-palette',
   Manager: 'fi-sr-briefcase',
   'SFX Maker': 'fi-sr-music',
+  Animador: 'fi-sr-running',
 }
 
 export function roleIcon(role) {
