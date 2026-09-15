@@ -61,7 +61,10 @@ export const api = {
   me: () => request('/auth/me/'),
 
   // roles / balance / dashboard
-  getRoles: () => request('/tasks/roles/'),
+  getRoles: () => request('/roles/'),
+  createRole: (data) => request('/roles/', { method: 'POST', body: JSON.stringify(data) }),
+  updateRole: (id, data) => request(`/roles/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteRole: (id) => request(`/roles/${id}/`, { method: 'DELETE' }),
   getBalance: () => request('/tasks/balance/'),
   getDashboard: () => request('/tasks/dashboard/'),
 

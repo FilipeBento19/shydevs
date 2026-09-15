@@ -3,12 +3,13 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     ActivityViewSet, AttachmentViewSet, BootstrapAdminView, LoginView, LogoutView, MeView, PersonViewSet,
-    ProjectSettingsView, SubtaskViewSet, TaskViewSet,
+    ProjectSettingsView, RoleViewSet, SubtaskViewSet, TaskViewSet,
 )
 
 router = DefaultRouter()
 router.register('people', PersonViewSet, basename='person')
 router.register('tasks', TaskViewSet, basename='task')
+router.register('roles', RoleViewSet, basename='role')
 router.register('subtasks', SubtaskViewSet, basename='subtask')
 router.register('activities', ActivityViewSet, basename='activity')
 router.register('attachments', AttachmentViewSet, basename='attachment')

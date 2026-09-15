@@ -77,6 +77,60 @@ async function addPerson() {
   }
 }
 
+async function updatePersonRole(person, newRole) {
+  if (!newRole || newRole === person.role) return
+  error.value = ''
+  try {
+    const updated = await api.updatePerson(person.id, { role: newRole })
+    people.value = people.value.map((p) => (p.id === updated.id ? updated : p))
+    emit('changed')
+  } catch (e) {
+    error.value = 'Não foi possível alterar o cargo dessa pessoa.'
+  }
+}
+
+// ---- role management ----
+const newRoleName = ref('')
+const newRoleColor = ref('#7c6fff')
+const roleError = ref('')
+const addingRole = ref(false)
+const confirmDeleteRoleId = ref(null)
+
+async function addRole() {
+  roleError.value = ''
+  const name = newRoleName.value.trim()
+  if (!name) {
+    roleError.value = 'Informe o nome do cargo.'
+    return
+  }
+  addingRole.value = true
+  try {
+    const created = await api.createRole({ name, color: newRoleColor.value })
+    roles.value = [...roles.value, created]
+    newRoleName.value = ''
+  } catch (e) {
+    roleError.value = e.message || 'Não foi possível criar o cargo.'
+  } finally {
+    addingRole.value = false
+  }
+}
+
+async function removeRole(role) {
+  roleError.value = ''
+  if (confirmDeleteRoleId.value !== role.id) {
+    confirmDeleteRoleId.value = role.id
+    return
+  }
+  try {
+    await api.deleteRole(role.id)
+    roles.value = roles.value.filter((r) => r.id !== role.id)
+    confirmDeleteRoleId.value = null
+  } catch (e) {
+    roleError.value = e.message || 'Não foi possível remover esse cargo.'
+    confirmDeleteRoleId.value = null
+  }
+}
+
 async function toggleAdmin(person) {
   error.value = ''
   if (person.is_admin && adminCount.value <= 1) {
@@ -123,7 +177,9 @@ async function removePerson(person) {
                 {{ p.name }}
                 <span v-if="p.is_admin" style="font-size:9.5px; font-weight:700; letter-spacing:.04em; color:#b3aaff; background:rgba(124,111,255,.16); border-radius:999px; padding:2px 7px;">ADMIN</span>
               </div>
-              <div style="font-size:11px; color:#8b899f; display:flex; align-items:center; gap:4px; margin-top:1px;"><i :class="`fi ${roleIcon(p.role)}`" style="opacity:.7;" aria-hidden="true"></i>{{ p.role }}</div>
+              <div style="width:150px; margin-top:3px;">
+                <CustomSelect :model-value="p.role" :options="roleOptions" width="100%" label="Cargo" @update:model-value="(v) => updatePersonRole(p, v)" />
+              </div>
             </div>
             <div style="display:flex; gap:6px; flex:none;">
               <button @click="toggleAdmin(p)"
@@ -139,6 +195,7 @@ async function removePerson(person) {
         </TransitionGroup>
       </div>
 
+      <div style="display:flex; flex-direction:column; gap:16px;">
       <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">
         <div style="font-size:12.5px; font-weight:800; color:#f5f4fb; margin-bottom:12px;">Adicionar pessoa</div>
         <div style="display:flex; flex-direction:column; gap:10px;">
@@ -163,6 +220,33 @@ async function removePerson(person) {
             <i class="fi fi-sr-plus-small" aria-hidden="true"></i>{{ submitting ? 'Adicionando…' : 'Adicionar' }}
           </button>
         </div>
+      </div>
+
+      <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">
+        <div style="font-size:12.5px; font-weight:800; color:#f5f4fb; margin-bottom:12px;">Cargos</div>
+        <TransitionGroup tag="div" @enter="listEnter" @leave="listLeave" :css="false" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <div v-for="r in roles" :key="r.id" :data-index="r.id" style="display:flex; align-items:center; gap:8px; background:#0e0e14; border:1px solid #22222f; border-radius:8px; padding:7px 9px;">
+            <span :style="{ width: '12px', height: '12px', flex: 'none', borderRadius: '50%', background: r.color }" aria-hidden="true"></span>
+            <span style="flex:1; min-width:0; font-size:12px; font-weight:600; color:#e4e2f1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ r.name }}</span>
+            <button type="button" @click="removeRole(r)" :aria-label="confirmDeleteRoleId === r.id ? `Confirmar remoção de ${r.name}` : `Remover cargo ${r.name}`"
+              :style="{ border: 'none', background: 'transparent', color: confirmDeleteRoleId === r.id ? '#ff8f98' : '#8f8da8', cursor: 'pointer', fontSize: '12px', flex: 'none' }">
+              <i class="fi fi-sr-cross-small" aria-hidden="true"></i>
+            </button>
+          </div>
+        </TransitionGroup>
+        <div v-if="!roles.length" style="font-size:12px; color:#8f8da8; margin-bottom:12px;">Nenhum cargo cadastrado.</div>
+
+        <div style="display:flex; gap:6px; align-items:center;">
+          <label for="new-role-color" class="sr-only">Cor do novo cargo</label>
+          <input id="new-role-color" v-model="newRoleColor" type="color" style="flex:none; width:32px; height:32px; padding:0; border:1px solid #26263a; background:#0e0e14; border-radius:7px; cursor:pointer;" />
+          <label for="new-role-name" class="sr-only">Nome do novo cargo</label>
+          <input id="new-role-name" v-model="newRoleName" @keyup.enter="addRole" placeholder="Novo cargo…" style="flex:1; min-width:0; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:8px 10px; font-size:12px; color:#f5f4fb; outline:none;" />
+          <button type="button" @click="addRole" :disabled="addingRole" style="flex:none; border:none; background:#7c6fff; color:#0a0a10; border-radius:8px; padding:8px 10px; font-size:12px; font-weight:700; cursor:pointer;">
+            <i class="fi fi-sr-plus-small" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div v-if="roleError" style="margin-top:8px; padding:8px 10px; background:rgba(224,79,95,.14); border:1px solid rgba(224,79,95,.35); border-radius:8px; color:#ff8f98; font-size:11.5px; font-weight:600;">{{ roleError }}</div>
+      </div>
       </div>
     </div>
   </div>

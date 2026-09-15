@@ -19,6 +19,7 @@ const rootEl = ref(null)
 const triggerEl = ref(null)
 const optionRefs = ref([])
 const activeIndex = ref(-1)
+const panelPos = ref({ top: 0, left: 0, right: 'auto', minWidth: 0 })
 
 const selected = computed(() => props.options.find((o) => o.value === props.modelValue))
 const selectedIndex = computed(() => props.options.findIndex((o) => o.value === props.modelValue))
@@ -29,9 +30,25 @@ function setOptionRef(i) {
   }
 }
 
+// The panel is teleported to <body> (see template) so it can never be clipped
+// by an ancestor's overflow:hidden — position it in viewport coordinates from
+// the trigger's own rect instead of relying on CSS position:absolute here.
+function updatePanelPos() {
+  if (!triggerEl.value) return
+  const r = triggerEl.value.getBoundingClientRect()
+  panelPos.value =
+    props.align === 'right'
+      ? { top: r.bottom + 6, right: window.innerWidth - r.right, left: 'auto', minWidth: r.width }
+      : { top: r.bottom + 6, left: r.left, right: 'auto', minWidth: r.width }
+}
+function onWindowScrollOrResize() {
+  if (open.value) closePanel(false)
+}
+
 function openPanel(focusIndex) {
   if (props.disabled) return
   open.value = true
+  updatePanelPos()
   activeIndex.value = focusIndex ?? (selectedIndex.value >= 0 ? selectedIndex.value : 0)
   nextTick(() => optionRefs.value[activeIndex.value]?.scrollIntoView({ block: 'nearest' }))
 }
@@ -93,10 +110,23 @@ function onTriggerKeydown(e) {
 }
 
 function onDocClick(e) {
-  if (open.value && rootEl.value && !rootEl.value.contains(e.target)) closePanel(false)
+  if (!open.value || !rootEl.value) return
+  if (rootEl.value.contains(e.target)) return
+  // Panel is teleported to <body>, so also let clicks inside it (identified
+  // via its listbox id) count as "inside" instead of closing the panel.
+  if (e.target.closest?.(`#${uid}-listbox`)) return
+  closePanel(false)
 }
-onMounted(() => document.addEventListener('click', onDocClick))
-onUnmounted(() => document.removeEventListener('click', onDocClick))
+onMounted(() => {
+  document.addEventListener('click', onDocClick)
+  window.addEventListener('scroll', onWindowScrollOrResize, true)
+  window.addEventListener('resize', onWindowScrollOrResize)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', onDocClick)
+  window.removeEventListener('scroll', onWindowScrollOrResize, true)
+  window.removeEventListener('resize', onWindowScrollOrResize)
+})
 </script>
 
 <template>
@@ -129,44 +159,47 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
       <i class="fi fi-sr-angle-small-down" aria-hidden="true" :style="{ flex: 'none', fontSize: '10px', opacity: 0.6, transition: 'transform .18s ease', transform: open ? 'rotate(180deg)' : 'none' }"></i>
     </button>
 
-    <Transition :css="false" @enter="popEnter" @leave="popLeave">
-      <div
-        v-if="open"
-        :id="`${uid}-listbox`"
-        class="cs-panel"
-        role="listbox"
-        :style="{
-          position: 'absolute', top: 'calc(100% + 6px)', [align === 'right' ? 'right' : 'left']: 0,
-          minWidth: '100%', width: 'max-content', maxWidth: '280px', background: '#14141d',
-          border: '1px solid #26263a', borderRadius: '10px', padding: '5px', zIndex: 60,
-          boxShadow: '0 14px 40px rgba(0,0,0,.5)', maxHeight: '260px', overflowY: 'auto',
-        }"
-      >
+    <Teleport to="body">
+      <Transition :css="false" @enter="popEnter" @leave="popLeave">
         <div
-          v-for="(opt, i) in options"
-          :key="String(opt.value)"
-          :ref="setOptionRef(i)"
-          :id="`${uid}-opt-${i}`"
-          class="cs-option"
-          role="option"
-          :aria-selected="opt.value === modelValue"
-          @click="select(opt)"
-          @mouseenter="activeIndex = i"
+          v-if="open"
+          :id="`${uid}-listbox`"
+          class="cs-panel"
+          role="listbox"
           :style="{
-            display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 10px', borderRadius: '7px',
-            fontSize: '12.5px', fontWeight: opt.value === modelValue ? '700' : '500',
-            color: opt.disabled ? '#5f5d78' : (opt.value === modelValue ? '#f5f4fb' : '#c7c5dc'),
-            background: i === activeIndex ? 'rgba(124,111,255,.16)' : (opt.value === modelValue ? 'rgba(124,111,255,.14)' : 'transparent'),
-            cursor: opt.disabled ? 'default' : 'pointer', whiteSpace: 'nowrap',
+            position: 'fixed', top: `${panelPos.top}px`, left: typeof panelPos.left === 'number' ? `${panelPos.left}px` : panelPos.left,
+            right: typeof panelPos.right === 'number' ? `${panelPos.right}px` : panelPos.right,
+            minWidth: `${panelPos.minWidth}px`, width: 'max-content', maxWidth: '280px', background: '#14141d',
+            border: '1px solid #26263a', borderRadius: '10px', padding: '5px', zIndex: 1000,
+            boxShadow: '0 14px 40px rgba(0,0,0,.5)', maxHeight: '260px', overflowY: 'auto',
           }"
         >
-          <i v-if="opt.icon" :class="`fi ${opt.icon}`" :style="{ color: opt.color || 'inherit', flex: 'none' }" aria-hidden="true"></i>
-          <span v-if="opt.color && !opt.icon" :style="{ width: '7px', height: '7px', borderRadius: '50%', background: opt.color, flex: 'none' }" aria-hidden="true"></span>
-          {{ opt.label }}
+          <div
+            v-for="(opt, i) in options"
+            :key="String(opt.value)"
+            :ref="setOptionRef(i)"
+            :id="`${uid}-opt-${i}`"
+            class="cs-option"
+            role="option"
+            :aria-selected="opt.value === modelValue"
+            @click="select(opt)"
+            @mouseenter="activeIndex = i"
+            :style="{
+              display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 10px', borderRadius: '7px',
+              fontSize: '12.5px', fontWeight: opt.value === modelValue ? '700' : '500',
+              color: opt.disabled ? '#5f5d78' : (opt.value === modelValue ? '#f5f4fb' : '#c7c5dc'),
+              background: i === activeIndex ? 'rgba(124,111,255,.16)' : (opt.value === modelValue ? 'rgba(124,111,255,.14)' : 'transparent'),
+              cursor: opt.disabled ? 'default' : 'pointer', whiteSpace: 'nowrap',
+            }"
+          >
+            <i v-if="opt.icon" :class="`fi ${opt.icon}`" :style="{ color: opt.color || 'inherit', flex: 'none' }" aria-hidden="true"></i>
+            <span v-if="opt.color && !opt.icon" :style="{ width: '7px', height: '7px', borderRadius: '50%', background: opt.color, flex: 'none' }" aria-hidden="true"></span>
+            {{ opt.label }}
+          </div>
+          <div v-if="!options.length" style="padding:10px; font-size:12px; color:#8f8da8;">Nenhuma opção.</div>
         </div>
-        <div v-if="!options.length" style="padding:10px; font-size:12px; color:#8f8da8;">Nenhuma opção.</div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 

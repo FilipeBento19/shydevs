@@ -4,23 +4,19 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
 
 
-class Role(models.TextChoices):
-    MODELADOR = 'Modelador', 'Modelador'
-    SCRIPTER = 'Scripter', 'Scripter'
-    VFX_MAKER = 'Vfx Maker', 'Vfx Maker'
-    UI_MAKER = 'Ui Maker', 'Ui Maker'
-    MANAGER = 'Manager', 'Manager'
-    SFX_MAKER = 'SFX Maker', 'SFX Maker'
+class Role(models.Model):
+    """A job role/department. Admin-managed so the team can add or rename
+    roles over time instead of being stuck with a fixed hardcoded list."""
 
+    name = models.CharField(max_length=40, unique=True)
+    color = models.CharField(max_length=60, default='oklch(0.62 0.15 200)')
+    order = models.PositiveIntegerField(default=0)
 
-ROLE_COLORS = {
-    Role.MODELADOR: 'oklch(0.62 0.15 45)',
-    Role.SCRIPTER: 'oklch(0.62 0.15 265)',
-    Role.VFX_MAKER: 'oklch(0.62 0.15 325)',
-    Role.UI_MAKER: 'oklch(0.62 0.15 200)',
-    Role.MANAGER: 'oklch(0.62 0.15 150)',
-    Role.SFX_MAKER: 'oklch(0.62 0.15 95)',
-}
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return self.name
 
 
 class Priority(models.TextChoices):
@@ -37,7 +33,7 @@ class Status(models.TextChoices):
 
 class Person(models.Model):
     name = models.CharField(max_length=120)
-    role = models.CharField(max_length=20, choices=Role.choices)
+    role = models.CharField(max_length=40)
     password = models.CharField(max_length=128, blank=True)
     photo = models.ImageField(upload_to='avatars/', blank=True, null=True)
     is_admin = models.BooleanField(default=False)
@@ -74,7 +70,7 @@ class Task(models.Model):
     code = models.CharField(max_length=20, unique=True, blank=True)
     title = models.CharField(max_length=200)
     description = models.CharField(max_length=500, blank=True)
-    role = models.CharField(max_length=20, choices=Role.choices)
+    role = models.CharField(max_length=40)
     assignee = models.ForeignKey(
         Person, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks'
     )

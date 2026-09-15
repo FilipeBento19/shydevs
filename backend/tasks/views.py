@@ -9,10 +9,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import (
-    Activity, Attachment, AuthToken, Person, Priority, ProjectSettings, Role, ROLE_COLORS, Status, Subtask, Task,
+    Activity, Attachment, AuthToken, Person, Priority, ProjectSettings, Role, Status, Subtask, Task,
 )
 from .serializers import (
-    ActivitySerializer, AttachmentSerializer, PersonSerializer, SubtaskSerializer, TaskSerializer,
+    ActivitySerializer, AttachmentSerializer, PersonSerializer, RoleSerializer, SubtaskSerializer, TaskSerializer,
 )
 
 
@@ -149,6 +149,22 @@ class PersonViewSet(viewsets.ModelViewSet):
         return Response({'detail': 'Senha alterada com sucesso.'})
 
 
+class RoleViewSet(viewsets.ModelViewSet):
+    queryset = Role.objects.all()
+    serializer_class = RoleSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        in_use = Task.objects.filter(role=instance.name).exists() or Person.objects.filter(role=instance.name).exists()
+        if in_use:
+            return Response(
+                {'detail': 'Esse cargo está em uso por pessoas ou tarefas e não pode ser removido.'},
+                status=400,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+
 OWNER_EDITABLE_FIELDS = {'status', 'completion_note'}
 
 
@@ -215,16 +231,16 @@ class TaskViewSet(viewsets.ModelViewSet):
         user = self.request.user
         return user if getattr(user, 'is_authenticated', False) else None
 
-    @action(detail=False, methods=['get'])
-    def roles(self, request):
-        data = [{'name': r.value, 'color': ROLE_COLORS[r]} for r in Role]
-        return Response(data)
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['role_colors'] = dict(Role.objects.values_list('name', 'color'))
+        return context
 
     @action(detail=False, methods=['get'])
     def balance(self, request):
         best = None
-        for role in Role:
-            members = Person.objects.filter(role=role)
+        for role in Role.objects.all():
+            members = Person.objects.filter(role=role.name)
             if members.count() < 2:
                 continue
             load = []
@@ -234,7 +250,7 @@ class TaskViewSet(viewsets.ModelViewSet):
             load.sort(key=lambda x: -x['n'])
             gap = load[0]['n'] - load[-1]['n']
             if best is None or gap > best['gap']:
-                best = {'gap': gap, 'role': role.value, 'top': load[0], 'low': load[-1]}
+                best = {'gap': gap, 'role': role.name, 'top': load[0], 'low': load[-1]}
 
         if best and best['gap'] > 0:
             text = (
@@ -254,7 +270,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         tasks = list(Task.objects.select_related('assignee').all())
         total = len(tasks)
         by_status = {s.value: sum(1 for t in tasks if t.status == s.value) for s in Status}
-        by_role = {r.value: sum(1 for t in tasks if t.role == r.value) for r in Role}
+        by_role = {r.name: sum(1 for t in tasks if t.role == r.name) for r in Role.objects.all()}
         by_priority = {p.value: sum(1 for t in tasks if t.priority == p.value) for p in Priority}
 
         overdue = sum(1 for t in tasks if t.due_date and t.due_date < timezone.now().date() and t.status != Status.CONCLUIDA)

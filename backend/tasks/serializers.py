@@ -1,7 +1,7 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 
-from .models import Activity, Attachment, Person, Role, ROLE_COLORS, Subtask, Task
+from .models import Activity, Attachment, Person, Role, Subtask, Task
 
 
 class PersonSerializer(serializers.ModelSerializer):
@@ -28,6 +28,23 @@ class PersonSerializer(serializers.ModelSerializer):
         if raw_password:
             instance.set_password(raw_password)
         instance.save()
+        return instance
+
+
+class RoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Role
+        fields = ['id', 'name', 'color', 'order']
+
+    def update(self, instance, validated_data):
+        old_name = instance.name
+        for attr, val in validated_data.items():
+            setattr(instance, attr, val)
+        instance.save()
+        new_name = instance.name
+        if new_name != old_name:
+            Task.objects.filter(role=old_name).update(role=new_name)
+            Person.objects.filter(role=old_name).update(role=new_name)
         return instance
 
 
@@ -101,7 +118,11 @@ class TaskSerializer(serializers.ModelSerializer):
         return request.build_absolute_uri(url) if request else url
 
     def get_role_color(self, obj):
-        return ROLE_COLORS.get(obj.role, ROLE_COLORS[Role.MODELADOR])
+        role_colors = self.context.get('role_colors')
+        if role_colors is None:
+            role = Role.objects.filter(name=obj.role).first()
+            return role.color if role else '#9a9ab0'
+        return role_colors.get(obj.role, '#9a9ab0')
 
     def get_subtasks_done(self, obj):
         return sum(1 for s in obj.subtasks.all() if s.done)
