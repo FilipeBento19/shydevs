@@ -26,6 +26,30 @@ class IsAdminOrReadOnly(permissions.BasePermission):
         return bool(user and getattr(user, 'is_authenticated', False) and getattr(user, 'is_admin', False))
 
 
+class TaskPermission(permissions.BasePermission):
+    """Anyone can read. Admins can do anything. A non-admin who is the task's
+    assignee may PATCH it (view-level restricts *which* fields are settable
+    below in TaskViewSet.partial_update), but cannot create, delete, or PUT."""
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        user = request.user
+        if not (user and getattr(user, 'is_authenticated', False)):
+            return False
+        if getattr(user, 'is_admin', False):
+            return True
+        return request.method == 'PATCH'
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        user = request.user
+        if getattr(user, 'is_admin', False):
+            return True
+        return request.method == 'PATCH' and obj.assignee_id == getattr(user, 'id', None)
+
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -102,9 +126,30 @@ class PersonViewSet(viewsets.ModelViewSet):
         return Response(PersonSerializer(person).data)
 
 
+OWNER_EDITABLE_FIELDS = {'status', 'completion_note'}
+
+
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [TaskPermission]
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not getattr(request.user, 'is_admin', False):
+            disallowed = set(request.data.keys()) - OWNER_EDITABLE_FIELDS
+            if disallowed:
+                return Response(
+                    {'detail': 'Você só pode alterar o status e a nota de conclusão das suas próprias tarefas.'},
+                    status=http_status.HTTP_403_FORBIDDEN,
+                )
+            new_status = request.data.get('status', instance.status)
+            new_note = request.data.get('completion_note', instance.completion_note)
+            if new_status == Status.CONCLUIDA and not (new_note or '').strip():
+                return Response(
+                    {'detail': 'Deixe uma nota de conclusão antes de marcar como concluída.'},
+                    status=400,
+                )
+        return super().partial_update(request, *args, **kwargs)
 
     def get_queryset(self):
         qs = Task.objects.select_related('assignee').prefetch_related('subtasks', 'attachments').all()

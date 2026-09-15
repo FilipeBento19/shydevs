@@ -23,15 +23,18 @@ const loading = ref(true)
 const notFound = ref(false)
 
 const canEdit = computed(() => !!auth.state.person?.is_admin)
+const isOwner = computed(() => !canEdit.value && task.value?.assignee === auth.state.person?.id)
+const canEditStatus = computed(() => canEdit.value || isOwner.value)
 
 const form = reactive({
-  title: '', description: '', role: '', assignee: null, due_date: '', priority: '', status: '',
+  title: '', description: '', role: '', assignee: null, due_date: '', priority: '', status: '', completion_note: '',
 })
 const saving = ref(false)
 const deleting = ref(false)
 const error = ref('')
 const confirmDelete = ref(false)
 const savedFlash = ref(false)
+const noteRequired = computed(() => form.status === 'Concluída' && !form.completion_note.trim())
 
 const newSubtaskTitle = ref('')
 
@@ -58,6 +61,7 @@ async function load() {
     form.due_date = taskData.due_date || ''
     form.priority = taskData.priority
     form.status = taskData.status
+    form.completion_note = taskData.completion_note || ''
   } catch (e) {
     if (e.status === 404) notFound.value = true
     else error.value = 'Não foi possível carregar a tarefa.'
@@ -97,19 +101,27 @@ async function refreshActivities() {
 }
 
 async function save() {
-  if (!canEdit.value) return
+  if (!canEditStatus.value) return
   error.value = ''
+  if (noteRequired.value) {
+    error.value = 'Deixe uma nota de conclusão antes de marcar como concluída.'
+    return
+  }
   saving.value = true
   try {
-    const updated = await api.updateTask(task.value.id, {
-      title: form.title,
-      description: form.description,
-      role: form.role,
-      assignee: form.assignee,
-      due_date: form.due_date || null,
-      priority: form.priority,
-      status: form.status,
-    })
+    const payload = canEdit.value
+      ? {
+          title: form.title,
+          description: form.description,
+          role: form.role,
+          assignee: form.assignee,
+          due_date: form.due_date || null,
+          priority: form.priority,
+          status: form.status,
+          completion_note: form.completion_note,
+        }
+      : { status: form.status, completion_note: form.completion_note }
+    const updated = await api.updateTask(task.value.id, payload)
     const wasCompleted = task.value.status === 'Concluída'
     task.value = updated
     if (updated.status === 'Concluída' && !wasCompleted) playDing()
@@ -118,7 +130,7 @@ async function save() {
     savedFlash.value = true
     setTimeout(() => (savedFlash.value = false), 2000)
   } catch (e) {
-    error.value = 'Não foi possível salvar as alterações.'
+    error.value = e.message || 'Não foi possível salvar as alterações.'
   } finally {
     saving.value = false
   }
@@ -198,15 +210,16 @@ function setQuickDate(offsetDays) {
           <div style="font-family:'JetBrains Mono', monospace; font-size:12px; color:#8f8da8;">{{ task.code }}</div>
           <div style="font-size:22px; font-weight:800; color:#f5f4fb; letter-spacing:-.02em; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             {{ task.title }}
-            <span v-if="!canEdit" style="font-size:10px; font-weight:700; letter-spacing:.04em; color:#8b899f; background:#1c1c28; border:1px solid #26263a; border-radius:999px; padding:3px 8px;"><i class="fi fi-sr-eye" style="margin-right:4px;" aria-hidden="true"></i>Somente leitura</span>
+            <span v-if="!canEdit && !isOwner" style="font-size:10px; font-weight:700; letter-spacing:.04em; color:#8b899f; background:#1c1c28; border:1px solid #26263a; border-radius:999px; padding:3px 8px;"><i class="fi fi-sr-eye" style="margin-right:4px;" aria-hidden="true"></i>Somente leitura</span>
+            <span v-else-if="isOwner" style="font-size:10px; font-weight:700; letter-spacing:.04em; color:#b3aaff; background:rgba(124,111,255,.16); border-radius:999px; padding:3px 8px;"><i class="fi fi-sr-user" style="margin-right:4px;" aria-hidden="true"></i>Sua tarefa</span>
           </div>
         </div>
-        <div v-if="canEdit" style="display:flex; gap:8px; flex:none;">
-          <button @click="remove" :disabled="deleting" :style="{ border: '1px solid rgba(224,79,95,.4)', background: confirmDelete ? 'rgba(224,79,95,.18)' : 'transparent', borderRadius: '9px', padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', color: '#ff8f98', cursor: 'pointer' }">
+        <div v-if="canEditStatus" style="display:flex; gap:8px; flex:none;">
+          <button v-if="canEdit" @click="remove" :disabled="deleting" :style="{ border: '1px solid rgba(224,79,95,.4)', background: confirmDelete ? 'rgba(224,79,95,.18)' : 'transparent', borderRadius: '9px', padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', color: '#ff8f98', cursor: 'pointer' }">
             <i class="fi fi-sr-trash-can-list" aria-hidden="true"></i> {{ confirmDelete ? 'Confirmar exclusão?' : 'Excluir' }}
           </button>
-          <button @click="save" :disabled="saving" style="border:none; background:#7c6fff; color:#0a0a10; border-radius:9px; padding:9px 16px; font-size:12.5px; font-weight:700; cursor:pointer;">
-            {{ saving ? 'Salvando…' : savedFlash ? '✓ Salvo' : 'Salvar alterações' }}
+          <button @click="save" :disabled="saving || noteRequired" :style="{ border: 'none', background: '#7c6fff', color: '#0a0a10', borderRadius: '9px', padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', cursor: noteRequired ? 'not-allowed' : 'pointer', opacity: noteRequired ? 0.6 : 1 }">
+            {{ saving ? 'Salvando…' : savedFlash ? '✓ Salvo' : canEdit ? 'Salvar alterações' : 'Salvar status' }}
           </button>
         </div>
       </div>
@@ -259,11 +272,21 @@ function setQuickDate(offsetDays) {
               <div>
                 <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Status</div>
                 <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px;">
-                  <button v-for="s in ['Pendente', 'Em andamento', 'Concluída']" :key="s" type="button" :disabled="!canEdit" @click="form.status = s"
-                    :style="{ borderRadius: '9px', padding: '9px 0', fontSize: '12px', fontWeight: '700', cursor: canEdit ? 'pointer' : 'default', border: `1px solid ${form.status === s ? '#7c6fff' : '#26263a'}`, background: form.status === s ? 'rgba(124,111,255,.16)' : '#0e0e14', color: form.status === s ? '#cfc9ff' : '#c7c5dc' }">
+                  <button v-for="s in ['Pendente', 'Em andamento', 'Concluída']" :key="s" type="button" :disabled="!canEditStatus" @click="form.status = s"
+                    :style="{ borderRadius: '9px', padding: '9px 0', fontSize: '12px', fontWeight: '700', cursor: canEditStatus ? 'pointer' : 'default', border: `1px solid ${form.status === s ? '#7c6fff' : '#26263a'}`, background: form.status === s ? 'rgba(124,111,255,.16)' : '#0e0e14', color: form.status === s ? '#cfc9ff' : '#c7c5dc' }">
                     {{ s }}
                   </button>
                 </div>
+              </div>
+
+              <div v-if="canEditStatus || form.completion_note">
+                <label for="task-completion-note" style="display:block; font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">
+                  Nota de conclusão <span v-if="form.status === 'Concluída'" style="color:#ff8f98;">*</span>
+                </label>
+                <textarea id="task-completion-note" v-model="form.completion_note" :disabled="!canEditStatus" rows="3"
+                  placeholder="O que foi feito, decisões tomadas, pontos de atenção…"
+                  :style="{ width: '100%', boxSizing: 'border-box', border: `1px solid ${noteRequired ? 'rgba(224,79,95,.5)' : '#26263a'}`, background: canEditStatus ? '#0e0e14' : '#131319', borderRadius: '9px', padding: '10px 12px', fontSize: '12.5px', color: canEditStatus ? '#f5f4fb' : '#9a97b8', outline: 'none', resize: 'vertical' }"></textarea>
+                <div v-if="noteRequired" style="font-size:11px; color:#ff8f98; margin-top:4px;">Obrigatória para marcar como concluída.</div>
               </div>
             </div>
           </div>

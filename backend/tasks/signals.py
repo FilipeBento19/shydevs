@@ -1,7 +1,7 @@
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
-from .models import Activity, Attachment, Task
+from .models import Activity, Attachment, Status, Task
 
 
 @receiver(pre_save, sender=Task)
@@ -34,6 +34,16 @@ def _log_task_activity(sender, instance, created, **kwargs):
         Activity.objects.create(
             task=instance, actor=actor,
             message=f'{instance.code} mudou de status: {previous.status} → {instance.status}.'
+        )
+        if instance.status == Status.CONCLUIDA and instance.completion_note:
+            Activity.objects.create(
+                task=instance, actor=actor,
+                message=f'Nota de conclusão de {instance.code}: "{instance.completion_note}"'
+            )
+    elif previous.completion_note != instance.completion_note and instance.completion_note:
+        Activity.objects.create(
+            task=instance, actor=actor,
+            message=f'Nota de conclusão de {instance.code} foi atualizada: "{instance.completion_note}"'
         )
     if previous.assignee_id != instance.assignee_id:
         old_name = previous.assignee.name if previous.assignee_id else 'ninguém'
