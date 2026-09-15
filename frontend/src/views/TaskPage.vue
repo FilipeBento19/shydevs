@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { auth } from '../auth'
 import { playDing } from '../sound'
-import { bumpTasks } from '../taskBus'
+import { bumpTasks, tasksVersion } from '../taskBus'
 import { listEnter, listLeave } from '../motion'
 import { roleIcon } from '../utils'
 import CustomSelect from '../components/CustomSelect.vue'
@@ -72,6 +72,19 @@ async function load() {
 }
 onMounted(load)
 watch(() => route.params.id, load)
+
+// Someone's photo (or other shared data) may have changed elsewhere in the
+// app — refresh just the display fields, never the in-progress edit form.
+watch(tasksVersion, async () => {
+  if (!task.value) return
+  try {
+    const fresh = await api.getTask(task.value.id)
+    task.value.assignee_photo = fresh.assignee_photo
+    task.value.assignee_name = fresh.assignee_name
+  } catch (e) {
+    // ignore — keep showing the last known photo
+  }
+})
 
 const formPeople = computed(() => people.value.filter((p) => p.role === form.role))
 const roleOptions = computed(() => roles.value.map((r) => ({ value: r.name, label: r.name, icon: roleIcon(r.name), color: r.color })))

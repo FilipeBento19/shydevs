@@ -34,7 +34,10 @@ const tableCardEl = ref(null)
 const balanceCardEl = ref(null)
 
 async function loadAll() {
-  loading.value = true
+  // Only show the loading state for the very first load — a refetch
+  // triggered by a background change elsewhere (e.g. someone's profile
+  // photo updating) shouldn't flash the table back to a loading spinner.
+  if (!tasks.value.length) loading.value = true
   error.value = ''
   try {
     const [taskList, peopleList, roleList, balanceData] = await Promise.all([

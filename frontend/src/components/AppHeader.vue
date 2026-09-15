@@ -5,6 +5,7 @@ import { api } from '../api'
 import { auth } from '../auth'
 import { gsap, popEnter, popLeave, reduceMotion } from '../motion'
 import { mascotFaceStyle, personAvatarStyle, mascot } from '../mascotFace'
+import { bumpTasks } from '../taskBus'
 import SlidingTabs from './SlidingTabs.vue'
 import LoginModal from './LoginModal.vue'
 
@@ -84,6 +85,7 @@ async function onPhotoChange(e) {
   try {
     const updated = await api.uploadPersonPhoto(auth.state.person.id, file)
     auth.setPerson(updated)
+    bumpTasks()
   } catch (err) {
     // ignore
   }

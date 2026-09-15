@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '../api'
 import { listEnter, listLeave } from '../motion'
 import { initials, roleIcon } from '../utils'
+import { tasksVersion } from '../taskBus'
 import CustomSelect from './CustomSelect.vue'
 
 const emit = defineEmits(['changed'])
@@ -39,6 +40,16 @@ async function load() {
 }
 defineExpose({ load })
 onMounted(load)
+
+// Refetch quietly (no loading spinner) when photos or other shared data
+// change elsewhere, e.g. someone updating their own profile photo.
+watch(tasksVersion, async () => {
+  try {
+    people.value = await api.getPeople()
+  } catch (e) {
+    // keep showing the last known list on failure
+  }
+})
 
 async function addPerson() {
   error.value = ''
