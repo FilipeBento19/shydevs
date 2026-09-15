@@ -6,7 +6,7 @@ import { gsap, reduceMotion } from '../motion'
 
 const router = useRouter()
 const isAdmin = computed(() => !!auth.state.person?.is_admin)
-const firstName = computed(() => auth.state.person?.name?.split(' ')[0] || '')
+
 
 function go(name) {
   router.push({ name })
@@ -154,8 +154,7 @@ onUnmounted(clearSceneTimer)
           {{ isAdmin ? 'Central do administrador' : 'Central do projeto' }}
         </span>
         <h1>
-          {{ isAdmin && firstName ? `${firstName}, organize o time` : 'Organize o time' }}
-          <span>sem deixar ninguém no escuro.</span>
+          Akanub, <span>amoleça meu pau</span>
         </h1>
         <p>
           Transforme cada demanda do jogo em um fluxo claro: defina o trabalho, escolha quem faz,
@@ -349,44 +348,6 @@ onUnmounted(clearSceneTimer)
       </div>
     </section>
 
-    <section class="responsibility-section">
-      <header class="section-heading compact">
-        <div>
-          <span class="section-kicker">Responsabilidades claras</span>
-          <h2>Quem faz o quê no ShyDevs?</h2>
-        </div>
-      </header>
-
-      <div class="responsibility-grid">
-        <article class="responsibility-card admin-card">
-          <header><span><i class="fi fi-sr-shield-check" aria-hidden="true"></i></span><div><small>Administrador</small><strong>Organiza e decide</strong></div></header>
-          <ul>
-            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Cadastra pessoas e define cargos</li>
-            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Cria, atribui e prioriza tarefas</li>
-            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Move, edita ou exclui demandas</li>
-            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Acompanha capacidade e atrasos</li>
-          </ul>
-        </article>
-
-        <article class="responsibility-card team-card">
-          <header><span><i class="fi fi-sr-users" aria-hidden="true"></i></span><div><small>Equipe</small><strong>Executa e comunica</strong></div></header>
-          <ul>
-            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Consulta suas próprias demandas</li>
-            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Atualiza o status do trabalho</li>
-            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Marca itens do checklist</li>
-            <li><i class="fi fi-sr-check" aria-hidden="true"></i>Anexa arquivos e registra a entrega</li>
-          </ul>
-        </article>
-
-        <aside class="shortcut-panel">
-          <span class="section-kicker">Atalhos úteis</span>
-          <div><kbd>N</kbd><span><strong>Nova tarefa</strong><small>Disponível para admins</small></span></div>
-          <div><kbd>/</kbd><span><strong>Buscar no quadro</strong><small>Encontre título, cargo ou pessoa</small></span></div>
-          <div><kbd>Esc</kbd><span><strong>Fechar janelas</strong><small>Volte rapidamente ao contexto</small></span></div>
-        </aside>
-      </div>
-    </section>
-
     <section class="home-cta">
       <div><span>Pronto para organizar a próxima entrega?</span><strong>{{ isAdmin ? 'Crie uma demanda clara em menos de um minuto.' : 'Veja agora o que está acontecendo no projeto.' }}</strong></div>
       <button type="button" @click="go(isAdmin ? 'new-task' : 'board')">
@@ -410,7 +371,7 @@ onUnmounted(clearSceneTimer)
 }
 
 button { font: inherit; }
-.home-hero { display: grid; grid-template-columns: minmax(0, .88fr) minmax(520px, 1.12fr); gap: 38px; align-items: center; min-height: 560px; padding-block: 18px 36px; }
+.home-hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; padding-block: 18px 36px; }
 .hero-copy { min-width: 0; }
 .eyebrow,
 .section-kicker { display: inline-flex; align-items: center; gap: 7px; color: #aaa2ff; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
@@ -561,21 +522,21 @@ button { font: inherit; }
 .mini-alert strong { font-size: 8.5px; }
 .mini-alert small { margin-top: 4px; color: #777487; font-size: 6.5px; }
 
-.explainer-footer { padding: 14px 15px 15px; border-top: 1px solid #232330; }
-.scene-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.scene-tabs button { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 6px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #656276; font-size: 7px; font-weight: 700; text-align: start; cursor: pointer; transition-property: color, background-color, border-color; transition-duration: 150ms; }
-.scene-tabs button span { display: grid; place-items: center; width: 17px; height: 17px; flex: none; border: 1px solid #2d2c3a; border-radius: 5px; color: #777487; }
-.scene-tabs button.active { border-color: rgba(124,111,255,.2); background: rgba(124,111,255,.07); color: #c1bbff; }
+.explainer-footer { padding: 22px 24px 24px; border-top: 1px solid #232330; }
+.scene-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.scene-tabs button { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 48px; padding: 10px 12px; border: 1px solid #302d40; border-radius: 9px; background: #17161f; color: #c5bfd6; font-size: 14px; line-height: 1.4; font-weight: 700; text-align: start; cursor: pointer; transition-property: color, background-color, border-color; transition-duration: 150ms; }
+.scene-tabs button span { display: grid; place-items: center; width: 26px; height: 26px; flex: none; border: 1px solid #484258; border-radius: 7px; color: #d4cde3; font-size: 12px; }
+.scene-tabs button.active { border-color: #786bb9; background: rgba(124,111,255,.16); color: #ece8ff; }
+.scene-tabs button:focus-visible { outline: 2px solid #c4baff; outline-offset: 3px; }
 .scene-tabs button.active span { border-color: #7c6fff; background: #7c6fff; color: #0a0a10; }
 .scene-tabs button.complete span { border-color: rgba(63,207,142,.24); color: #5bdc9b; }
-.scene-copy { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: start; min-height: 47px; margin-top: 12px; padding-top: 11px; border-top: 1px solid rgba(255,255,255,.035); }
-.scene-copy > span { display: inline-flex; align-items: center; gap: 4px; color: #8d85e7; font-size: 7px; font-weight: 800; text-transform: uppercase; }
-.scene-copy strong { display: block; color: #d9d6e7; font-size: 9px; }
-.scene-copy p { margin: 3px 0 0; color: #777487; font-size: 8px; line-height: 1.45; }
+.scene-copy { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 18px; align-items: start; min-height: 76px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #302d40; }
+.scene-copy > span { display: inline-flex; align-items: center; gap: 6px; padding-top: 4px; color: #bcb1ff; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.scene-copy strong { display: block; color: #f0edf8; font-size: 18px; line-height: 1.4; }
+.scene-copy p { margin: 6px 0 0; color: #bfb8d0; font-size: 15px; line-height: 1.65; }
 
 .admin-guide,
-.member-guide,
-.responsibility-section { padding-block: 52px; }
+.member-guide { padding-block: 52px; }
 .section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; margin-bottom: 22px; }
 .section-heading h2 { margin: 7px 0 0; font-size: clamp(24px, 3vw, 34px); line-height: 1; letter-spacing: -.035em; }
 .section-heading > p { max-width: 480px; margin: 0; color: #8e8ba2; font-size: 12px; line-height: 1.6; }
@@ -606,29 +567,6 @@ button { font: inherit; }
 .member-actions strong { color: #dedbea; font-size: 12px; }
 .member-actions small { margin-top: 4px; color: #807d92; font-size: 10px; }
 
-.responsibility-section { border-top: 1px solid #1b1b25; }
-.responsibility-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(240px, .72fr); gap: 12px; }
-.responsibility-card,
-.shortcut-panel { min-width: 0; padding: 17px; border: 1px solid #242432; border-radius: 13px; background: #14141d; }
-.responsibility-card header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.responsibility-card header > span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; font-size: 12px; }
-.admin-card header > span { background: rgba(124,111,255,.12); color: #aaa1ff; }
-.team-card header > span { background: rgba(63,207,142,.1); color: #67dda1; }
-.responsibility-card header small,
-.responsibility-card header strong { display: block; }
-.responsibility-card header small { color: #79768a; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.responsibility-card header strong { margin-top: 3px; font-size: 12px; }
-.responsibility-card ul { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
-.responsibility-card li { display: flex; align-items: center; gap: 7px; color: #9693a8; font-size: 10.5px; }
-.responsibility-card li i { display: grid; place-items: center; width: 15px; height: 15px; flex: none; border-radius: 5px; background: rgba(63,207,142,.09); color: #5cd99d; font-size: 6px; }
-.shortcut-panel { display: flex; flex-direction: column; gap: 13px; }
-.shortcut-panel > div { display: flex; align-items: center; gap: 9px; }
-.shortcut-panel kbd { display: grid; place-items: center; width: 28px; height: 27px; flex: none; border: 1px solid #302f40; border-radius: 7px; background: #101017; color: #c8c4da; font-family: 'JetBrains Mono', monospace; font-size: 9px; box-shadow: inset 0 -2px rgba(0,0,0,.25); }
-.shortcut-panel strong,
-.shortcut-panel small { display: block; }
-.shortcut-panel strong { color: #c5c2d4; font-size: 9.5px; }
-.shortcut-panel small { margin-top: 2px; color: #747185; font-size: 8px; }
-
 .home-cta { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px; border: 1px solid rgba(124,111,255,.26); border-radius: 14px; background: radial-gradient(circle at 18% 0, rgba(124,111,255,.16), transparent 40%), #14141d; }
 .home-cta span,
 .home-cta strong { display: block; }
@@ -643,6 +581,7 @@ button { font: inherit; }
   .admin-step:hover { transform: translateY(-2px); border-color: #3a384d; background-color: #171720; }
   .admin-step.featured:hover { border-color: rgba(124,111,255,.55); }
 }
+
 
 @keyframes scene-item-in {
   from { opacity: 0; transform: translateY(8px) scale(.98); }
@@ -671,47 +610,29 @@ button { font: inherit; }
   to { opacity: 1; transform: scaleY(1); }
 }
 
-@media (max-width: 980px) {
-  .home-hero { grid-template-columns: 1fr; min-height: auto; }
-  .hero-copy { max-width: 720px; }
-  .explainer-card { width: 100%; max-width: 680px; }
-  .admin-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .responsibility-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .shortcut-panel { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); }
-  .shortcut-panel > .section-kicker { grid-column: 1 / -1; }
-}
 
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   .home-page { padding-inline: 16px; }
-  .home-hero { gap: 28px; padding-top: 8px; }
   .hero-copy h1 { font-size: 38px; }
-  .motion-stage { height: 286px; }
+  .motion-stage { height: 322px; }
   .motion-scene { padding: 14px; }
-  .mock-modal { width: 90%; }
-  .assignment-card { width: 92%; }
-  .moving-task { inset-inline-start: 24px; top: 78px; width: calc((100% - 62px) / 3); padding: 7px; }
-  .drag-pointer { display: none; }
-  .scene-tabs button { justify-content: center; }
-  .scene-tabs button { font-size: 0; }
-  .scene-tabs button span { font-size: 7px; }
-  .scene-copy { grid-template-columns: 48px 1fr; }
-  .section-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
-  .admin-steps,
-  .responsibility-grid,
-  .member-actions { grid-template-columns: 1fr; }
-  .admin-step { min-height: 220px; }
-  .admin-tip { grid-template-columns: 38px minmax(0,1fr); }
-  .admin-tip button { grid-column: 1 / -1; justify-content: center; }
-  .shortcut-panel { grid-column: auto; grid-template-columns: 1fr; }
-  .shortcut-panel > .section-kicker { grid-column: auto; }
-  .home-cta { align-items: flex-start; flex-direction: column; }
-  .home-cta button { width: 100%; }
+  .mock-modal, .assignment-card { width: 95%; }
   .person-options { grid-template-columns: 1fr; }
-  .person-option:last-child { display: none; }
+  .person-option:last-child, .drag-pointer { display: none; }
+  .moving-task { inset-inline-start: 24px; top: 78px; width: calc((100% - 62px) / 3); padding: 7px; }
   .dashboard-bottom { grid-template-columns: 1fr; }
   .mini-alert { display: none; }
+  .explainer-footer { padding: 18px; }
+  .scene-tabs { grid-template-columns: 1fr 1fr; }
+  .scene-tabs button { font-size: 14px; min-height: 64px; }
+  .scene-copy { grid-template-columns: 1fr; gap: 10px; }
+  .section-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .admin-steps, .member-actions { grid-template-columns: 1fr; }
+  .admin-tip { grid-template-columns: 38px minmax(0, 1fr); }
+  .admin-tip button { grid-column: 1 / -1; justify-content: center; }
+  .home-cta { align-items: flex-start; flex-direction: column; }
+  .home-cta button { width: 100%; }
 }
-
 @media (prefers-reduced-motion: reduce) {
   .scene-item,
   .typing-field span,
@@ -721,4 +642,5 @@ button { font: inherit; }
   .chart-bars span { animation: none; }
   .drag-pointer { display: none; }
 }
+
 </style>

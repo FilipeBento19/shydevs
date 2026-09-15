@@ -55,10 +55,10 @@ Abre em `http://localhost:5173`. As chamadas `/api/*` e `/media/*` são redireci
 - Aba "Equipe" (admin): adicionar/remover pessoas, com senha opcional para cada uma
 - "Minhas tarefas" e upload de foto de perfil (admin)
 - Quadro em tabela ou Kanban (drag-and-drop, só admin) por status
-- **Página dedicada por tarefa** (`/tasks/:id`, URL própria e compartilhável): detalhes, checklist, histórico e **anexos** (imagens, vídeos ou links) — qualquer pessoa logada pode anexar prova do que fez; edição da tarefa em si continua só admin
+- **Página dedicada por tarefa** (`/tasks/:id`, URL própria e compartilhável): detalhes, checklist, comentários, histórico e **anexos** (imagens, vídeos ou links) — qualquer pessoa logada pode anexar prova do que fez e comentar; edição da tarefa em si continua só admin
 - Ações em massa (selecionar várias tarefas → mudar status / excluir) — só admin
 - Histórico de atividades (log automático de criação, mudança de status, reatribuição, anexos)
-- Dashboard com gráficos de status, prioridade, cargo e carga por pessoa
+- Dashboard com gráficos de status, prioridade, cargo e carga por pessoa, incluindo acesso direto ao quadro filtrado pelas tarefas atrasadas
 - Atalhos de teclado: `/` busca, `N` nova tarefa, `Esc` fecha modais
 - Animações GSAP em toda a interface (entrada, modais, listas, cards do Kanban, barras do dashboard, toasts, menu de conta), tema escuro, ícones Flaticon, easter egg (clique no mascote)
 

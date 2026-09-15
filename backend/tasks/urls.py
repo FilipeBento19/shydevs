@@ -2,8 +2,8 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    ActivityViewSet, AttachmentViewSet, BootstrapAdminView, LoginView, LogoutView, MeView, PersonViewSet,
-    ProjectSettingsView, RoleViewSet, SubtaskViewSet, TaskViewSet,
+    ActivityViewSet, AttachmentViewSet, BootstrapAdminView, CommentViewSet, LoginView, LogoutView,
+    MeView, PersonViewSet, ProjectSettingsView, RoleViewSet, SubtaskViewSet, TaskViewSet,
 )
 
 router = DefaultRouter()
@@ -13,6 +13,7 @@ router.register('roles', RoleViewSet, basename='role')
 router.register('subtasks', SubtaskViewSet, basename='subtask')
 router.register('activities', ActivityViewSet, basename='activity')
 router.register('attachments', AttachmentViewSet, basename='attachment')
+router.register('comments', CommentViewSet, basename='comment')
 
 urlpatterns = [
     path('auth/login/', LoginView.as_view()),

@@ -122,6 +122,21 @@ class Activity(models.Model):
         return self.message
 
 
+class Comment(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(
+        Person, on_delete=models.SET_NULL, null=True, related_name='comments'
+    )
+    body = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+    def __str__(self):
+        return f'{self.author or "Pessoa removida"} em {self.task.code}'
+
+
 class Attachment(models.Model):
     class Kind(models.TextChoices):
         IMAGE = 'image', 'Imagem'

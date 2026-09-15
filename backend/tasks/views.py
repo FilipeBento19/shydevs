@@ -9,10 +9,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import (
-    Activity, Attachment, AuthToken, Person, Priority, ProjectSettings, Role, Status, Subtask, Task,
+    Activity, Attachment, AuthToken, Comment, Person, Priority, ProjectSettings, Role, Status, Subtask, Task,
 )
 from .serializers import (
-    ActivitySerializer, AttachmentSerializer, PersonSerializer, RoleSerializer, SubtaskSerializer, TaskSerializer,
+    ActivitySerializer, AttachmentSerializer, CommentSerializer, PersonSerializer, RoleSerializer,
+    SubtaskSerializer, TaskSerializer,
 )
 
 
@@ -280,6 +281,7 @@ class TaskViewSet(viewsets.ModelViewSet):
             {
                 'name': p.name,
                 'roles': [r.name for r in p.roles.all()],
+                'photo': request.build_absolute_uri(p.photo.url) if p.photo else None,
                 'open': sum(1 for t in tasks if t.assignee_id == p.id and t.status != Status.CONCLUIDA),
                 'done': sum(1 for t in tasks if t.assignee_id == p.id and t.status == Status.CONCLUIDA),
             }
@@ -362,6 +364,41 @@ class ActivityViewSet(viewsets.ReadOnlyModelViewSet):
         if task_id:
             qs = qs.filter(task_id=task_id)
         return qs[:200]
+
+
+class CommentPermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and getattr(request.user, 'is_authenticated', False))
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        user = request.user
+        return bool(
+            getattr(user, 'is_admin', False)
+            or obj.author_id == getattr(user, 'id', None)
+        )
+
+
+class CommentViewSet(viewsets.ModelViewSet):
+    serializer_class = CommentSerializer
+    permission_classes = [CommentPermission]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        qs = Comment.objects.select_related('author', 'task').all()
+        task_id = self.request.query_params.get('task')
+        if task_id:
+            qs = qs.filter(task_id=task_id)
+        return qs
+
+    def perform_create(self, serializer):
+        comment = serializer.save(author=self.request.user)
+        Activity.objects.create(
+            task=comment.task,
+            actor=self.request.user,
+            message=f'{self.request.user.name} comentou na tarefa',
+        )
 
 
 class IsAuthenticatedOrReadOnly(permissions.BasePermission):

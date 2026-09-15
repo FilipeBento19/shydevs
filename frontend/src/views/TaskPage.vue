@@ -9,6 +9,7 @@ import { listEnter, listLeave } from '../motion'
 import { roleIcon } from '../utils'
 import CustomSelect from '../components/CustomSelect.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
+import CommentsPanel from '../components/CommentsPanel.vue'
 import BackButton from '../components/BackButton.vue'
 import AssigneeAvatar from '../components/AssigneeAvatar.vue'
 import Checkbox from '../components/Checkbox.vue'
@@ -343,6 +344,10 @@ function setQuickDate(offsetDays) {
 
           <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">
             <AttachmentsPanel :task-id="task.id" @changed="refreshActivities" />
+          </div>
+
+          <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">
+            <CommentsPanel :task-id="task.id" @changed="refreshActivities" />
           </div>
 
           <div v-if="activities.length" style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { auth } from '../auth'
 import { playDing } from '../sound'
@@ -12,6 +13,8 @@ import RoleChipsBar from '../components/RoleChipsBar.vue'
 import TaskTable from '../components/TaskTable.vue'
 import KanbanBoard from '../components/KanbanBoard.vue'
 
+const route = useRoute()
+const router = useRouter()
 const canEdit = computed(() => !!auth.state.person?.is_admin)
 
 const tasks = ref([])
@@ -38,11 +41,28 @@ const syncLabel = computed(() => {
   return lastSyncedAt.value.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 })
 
-const filters = reactive({ role: 'Todos', status: 'Todas', prio: 'Todas', person: 'Todos', query: '' })
+const validStatuses = new Set(['Todas', 'Pendente', 'Em andamento', 'Concluída', 'Atrasadas'])
+const queryStatus = (value) => validStatuses.has(value) ? value : 'Todas'
+const filters = reactive({ role: 'Todos', status: queryStatus(route.query.status), prio: 'Todas', person: 'Todos', query: '' })
 const myTasksOnly = ref(false)
 const boardMode = ref('tabela')
 const selectedIds = ref([])
 const searchInputRef = ref(null)
+
+watch(() => route.query.status, (status) => {
+  const nextStatus = queryStatus(status)
+  if (filters.status !== nextStatus) filters.status = nextStatus
+})
+
+watch(() => filters.status, (status) => {
+  const current = route.query.status || undefined
+  const next = status === 'Todas' ? undefined : status
+  if (current === next) return
+  const query = { ...route.query }
+  if (next) query.status = next
+  else delete query.status
+  router.replace({ query })
+})
 
 const roleChipsEl = ref(null)
 const filterBarEl = ref(null)

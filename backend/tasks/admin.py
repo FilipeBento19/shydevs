@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Activity, Attachment, AuthToken, Person, ProjectSettings, Subtask, Task
+from .models import Activity, Attachment, AuthToken, Comment, Person, ProjectSettings, Subtask, Task
 
 
 @admin.register(Person)
@@ -41,6 +41,13 @@ class AuthTokenAdmin(admin.ModelAdmin):
 class AttachmentAdmin(admin.ModelAdmin):
     list_display = ['__str__', 'task', 'kind', 'uploaded_by', 'created_at']
     list_filter = ['kind']
+
+
+@admin.register(Comment)
+class CommentAdmin(admin.ModelAdmin):
+    list_display = ['task', 'author', 'created_at']
+    search_fields = ['body', 'task__code', 'author__name']
+    readonly_fields = ['created_at']
 
 
 @admin.register(ProjectSettings)

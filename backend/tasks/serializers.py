@@ -1,7 +1,7 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 
-from .models import Activity, Attachment, Person, Role, Subtask, Task
+from .models import Activity, Attachment, Comment, Person, Role, Subtask, Task
 
 
 class PersonSerializer(serializers.ModelSerializer):
@@ -82,6 +82,29 @@ class ActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Activity
         fields = ['id', 'task', 'task_code', 'actor', 'actor_name', 'message', 'created_at']
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source='author.name', read_only=True, default='Pessoa removida')
+    author_photo = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comment
+        fields = ['id', 'task', 'author', 'author_name', 'author_photo', 'body', 'created_at']
+        read_only_fields = ['author', 'created_at']
+
+    def validate_body(self, value):
+        body = value.strip()
+        if not body:
+            raise serializers.ValidationError('Escreva um comentário.')
+        return body
+
+    def get_author_photo(self, obj):
+        if not obj.author or not obj.author.photo:
+            return None
+        request = self.context.get('request')
+        url = obj.author.photo.url
+        return request.build_absolute_uri(url) if request else url
 
 
 class AttachmentSerializer(serializers.ModelSerializer):

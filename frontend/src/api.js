@@ -103,6 +103,11 @@ export const api = {
   // activities
   getActivities: (taskId) => request(`/activities/${qs({ task: taskId })}`),
 
+  // comments
+  getComments: (taskId) => request(`/comments/${qs({ task: taskId })}`),
+  createComment: (data) => request('/comments/', { method: 'POST', body: JSON.stringify(data) }),
+  deleteComment: (id) => request(`/comments/${id}/`, { method: 'DELETE' }),
+
   // attachments
   getAttachments: (taskId) => request(`/attachments/${qs({ task: taskId })}`),
   createAttachment: (data) => {

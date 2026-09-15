@@ -141,6 +141,10 @@ function deadlineClass(task) {
 function openTask(task) {
   router.push({ name: 'task', params: { id: task.id } })
 }
+
+function openBoard(status) {
+  router.push({ name: 'board', query: { status } })
+}
 </script>
 
 <template>
@@ -190,11 +194,18 @@ function openTask(task) {
           <div class="metric-heading"><span>Taxa de conclusão</span><strong>{{ completionRate }}%</strong></div>
           <p>{{ completed }} entregas já concluídas</p>
         </article>
-        <article class="metric-card dashboard-animate" :class="{ 'metric-card--alert': data.overdue > 0 }">
+        <button
+          type="button"
+          class="metric-card metric-card--button dashboard-animate"
+          :class="{ 'metric-card--alert': data.overdue > 0 }"
+          aria-label="Ver tarefas atrasadas no quadro"
+          @click="openBoard('Atrasadas')"
+        >
           <div class="metric-icon red"><i class="fi fi-sr-triangle-warning" aria-hidden="true"></i></div>
           <div class="metric-heading"><span>Tarefas atrasadas</span><strong>{{ data.overdue }}</strong></div>
           <p>{{ data.overdue ? 'Precisam de atenção imediata' : 'Nenhum prazo vencido agora' }}</p>
-        </article>
+          <span class="metric-action">Ver no quadro <i class="fi fi-sr-arrow-up-right" aria-hidden="true"></i></span>
+        </button>
       </section>
 
       <section class="overview-grid">
@@ -281,7 +292,10 @@ function openTask(task) {
             </div>
             <div v-for="person in workload" :key="person.name" class="workload-row">
               <div class="person-cell">
-                <span class="avatar">{{ initials(person.name) }}</span>
+                <span class="avatar">
+                  <img v-if="person.photo" :src="person.photo" :alt="`Foto de ${person.name}`" />
+                  <template v-else>{{ initials(person.name) }}</template>
+                </span>
                 <div><strong>{{ person.name }}</strong><span>{{ person.roles.join(' · ') || 'Sem cargo' }}</span></div>
               </div>
               <div class="workload-bar-cell">
@@ -406,6 +420,10 @@ function openTask(task) {
 .metric-card,
 .panel { border: 1px solid var(--border); background: linear-gradient(145deg, rgba(255,255,255,.012), transparent 42%), var(--panel); box-shadow: 0 12px 30px rgba(0, 0, 0, .12); }
 .metric-card { position: relative; min-width: 0; padding: 14px; border-radius: 12px; overflow: hidden; }
+.metric-card--button { color: inherit; font: inherit; text-align: start; cursor: pointer; transition-property: border-color, background-color, transform; transition-duration: 150ms; }
+.metric-card--button:focus-visible { outline: 2px solid #b3aaff; outline-offset: 3px; }
+.metric-action { display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; color: #a8a1f2; font-size: 9.5px; font-weight: 800; }
+.metric-action i { font-size: 8px; }
 .metric-card::after { content: ''; position: absolute; inset: auto 0 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(124,111,255,.45), transparent); opacity: 0; }
 .metric-card--alert { border-color: rgba(232,93,106,.28); }
 .metric-card--alert::after { opacity: 1; background: linear-gradient(90deg, transparent, rgba(232,93,106,.65), transparent); }
@@ -418,6 +436,10 @@ function openTask(task) {
 .metric-heading span { color: #aaa7bf; font-size: 11.5px; font-weight: 700; }
 .metric-heading strong { color: var(--text); font-size: 24px; line-height: 1; letter-spacing: -.035em; }
 .metric-card p { margin: 7px 0 0; color: #77758d; font-size: 10.5px; line-height: 1.4; }
+
+@media (hover: hover) and (pointer: fine) {
+  .metric-card--button:hover { transform: translateY(-1px); border-color: rgba(232,93,106,.48); background-color: #181720; }
+}
 
 .overview-grid,
 .operations-grid { display: grid; gap: 14px; margin-bottom: 14px; }
@@ -476,6 +498,7 @@ function openTask(task) {
 .workload-row { min-height: 53px; padding: 7px 10px; border-top: 1px solid rgba(255,255,255,.045); }
 .person-cell { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .avatar { display: grid; place-items: center; width: 29px; height: 29px; flex: none; border: 1px solid rgba(124,111,255,.22); border-radius: 50%; background: rgba(124,111,255,.12); color: #c3bcff; font-size: 9.5px; font-weight: 800; }
+.avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; display: block; }
 .person-cell div { min-width: 0; }
 .person-cell strong,
 .person-cell span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
