@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { auth } from '../auth'
@@ -90,6 +90,40 @@ async function onPhotoChange(e) {
     // ignore
   }
 }
+
+// ---- change password ----
+const changingPassword = ref(false)
+const newPasswordDraft = ref('')
+const savingPassword = ref(false)
+const passwordSaved = ref(false)
+
+function startChangePassword() {
+  newPasswordDraft.value = ''
+  passwordSaved.value = false
+  changingPassword.value = true
+}
+async function savePassword() {
+  const password = newPasswordDraft.value
+  if (!password || !auth.state.person) return
+  savingPassword.value = true
+  try {
+    await api.changePassword(auth.state.person.id, password)
+    passwordSaved.value = true
+    newPasswordDraft.value = ''
+    setTimeout(() => {
+      changingPassword.value = false
+      passwordSaved.value = false
+    }, 1200)
+  } catch (err) {
+    // ignore
+  } finally {
+    savingPassword.value = false
+  }
+}
+
+watch(accountOpen, (open) => {
+  if (!open) changingPassword.value = false
+})
 
 function onDocClick(e) {
   if (accountOpen.value && !e.target.closest('.account-menu')) accountOpen.value = false
@@ -182,6 +216,22 @@ defineExpose({ mascot })
             <i class="fi fi-sr-user-add" aria-hidden="true"></i>Alterar foto
             <input id="account-photo-input" type="file" accept="image/*" @change="onPhotoChange" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);" />
           </label>
+
+          <button v-if="!changingPassword" role="menuitem" type="button" @click="startChangePassword" style="width:100%; text-align:left; display:flex; align-items:center; gap:8px; font-size:12px; color:#c7c5dc; padding:8px; border-radius:7px; cursor:pointer; border:none; background:transparent;">
+            <i class="fi fi-sr-lock" aria-hidden="true"></i>Trocar senha
+          </button>
+          <form v-else @submit.prevent="savePassword" style="padding:6px 8px 8px; display:flex; flex-direction:column; gap:6px;">
+            <label for="new-password-input" class="sr-only">Nova senha</label>
+            <input id="new-password-input" v-model="newPasswordDraft" type="password" autofocus placeholder="Nova senha"
+              style="width:100%; box-sizing:border-box; border:1px solid #7c6fff; background:#0e0e14; border-radius:7px; padding:7px 9px; font-size:12px; color:#f5f4fb; outline:none;" />
+            <div style="display:flex; gap:6px;">
+              <button type="submit" :disabled="!newPasswordDraft || savingPassword" style="flex:1; border:none; background:#7c6fff; color:#0a0a10; border-radius:7px; padding:7px 0; font-size:11.5px; font-weight:700; cursor:pointer;">
+                {{ savingPassword ? 'Salvando…' : passwordSaved ? '✓ Trocada' : 'Salvar' }}
+              </button>
+              <button type="button" @click="changingPassword = false" style="border:1px solid #26263a; background:transparent; color:#8b899f; border-radius:7px; padding:7px 10px; font-size:11.5px; cursor:pointer;">Cancelar</button>
+            </div>
+          </form>
+
           <button role="menuitem" @click="logout" style="width:100%; text-align:left; display:flex; align-items:center; gap:8px; font-size:12px; color:#ff8f98; padding:8px; border-radius:7px; cursor:pointer; border:none; background:transparent;">
             <i class="fi fi-sr-sign-out-alt" aria-hidden="true"></i>Sair
           </button>

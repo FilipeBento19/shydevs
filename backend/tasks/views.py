@@ -91,7 +91,7 @@ class PersonViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminOrReadOnly]
 
     def get_permissions(self):
-        if self.action == 'photo':
+        if self.action in ('photo', 'change_password'):
             return [IsAuthenticated()]
         return super().get_permissions()
 
@@ -133,6 +133,20 @@ class PersonViewSet(viewsets.ModelViewSet):
         person.photo = file
         person.save()
         return Response(PersonSerializer(person, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='change-password')
+    def change_password(self, request, pk=None):
+        person = self.get_object()
+        user = request.user
+        is_self = getattr(user, 'id', None) == person.id
+        if not (getattr(user, 'is_admin', False) or is_self):
+            return Response({'detail': 'Você só pode trocar a sua própria senha.'}, status=http_status.HTTP_403_FORBIDDEN)
+        new_password = request.data.get('password') or ''
+        if not new_password:
+            return Response({'detail': 'Informe a nova senha.'}, status=400)
+        person.set_password(new_password)
+        person.save()
+        return Response({'detail': 'Senha alterada com sucesso.'})
 
 
 OWNER_EDITABLE_FIELDS = {'status', 'completion_note'}

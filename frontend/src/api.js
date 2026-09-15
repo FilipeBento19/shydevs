@@ -75,6 +75,8 @@ export const api = {
     fd.append('photo', file)
     return request(`/people/${id}/photo/`, { method: 'POST', body: fd })
   },
+  changePassword: (id, password) =>
+    request(`/people/${id}/change-password/`, { method: 'POST', body: JSON.stringify({ password }) }),
 
   // tasks
   getTasks: (params = {}) => request(`/tasks/${qs(params)}`),
