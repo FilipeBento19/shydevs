@@ -164,6 +164,24 @@ REST_FRAMEWORK = {
     ],
 }
 
+# Django's default logging only prints request-handling errors to the console
+# when DEBUG=True, so unhandled 500s are otherwise invisible in the Render logs.
+# Force them to stderr regardless of DEBUG.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+}
+
 # Render (and most PaaS hosts) terminate TLS at a proxy in front of the app, so we
 # trust their forwarded-proto header instead of redirect-looping on HTTP.
 if not DEBUG:
