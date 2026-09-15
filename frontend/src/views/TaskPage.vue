@@ -270,7 +270,11 @@ function setQuickDate(offsetDays) {
                     Prazo
                     <button v-if="canEdit" type="button" @click="form.due_date = ''" style="border:none; background:transparent; color:#7c6fff; font-size:10.5px; font-weight:700; cursor:pointer; padding:0;">Sem prazo</button>
                   </div>
-                  <input type="date" aria-label="Prazo" v-model="form.due_date" :disabled="!canEdit" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:9px 11px; font-size:12.5px; color:#c7c5dc; outline:none;" />
+                  <div style="position:relative;">
+                    <input type="date" aria-label="Prazo" v-model="form.due_date" :disabled="!canEdit"
+                      :style="{ width: '100%', boxSizing: 'border-box', border: '1px solid #26263a', background: '#0e0e14', borderRadius: '9px', padding: '9px 11px', fontSize: '12.5px', color: form.due_date ? '#c7c5dc' : 'transparent', outline: 'none' }" />
+                    <span v-if="!form.due_date" style="position:absolute; left:11px; top:50%; transform:translateY(-50%); font-size:12.5px; color:#7f7d97; pointer-events:none;">Sem prazo</span>
+                  </div>
                   <div v-if="canEdit" style="display:flex; gap:5px; margin-top:6px; flex-wrap:wrap;">
                     <button type="button" @click="setQuickDate(0)" style="font-size:10.5px; color:#8b899f; cursor:pointer; border:1px solid #26263a; background:transparent; border-radius:6px; padding:3px 7px;">Hoje</button>
                     <button type="button" @click="setQuickDate(1)" style="font-size:10.5px; color:#8b899f; cursor:pointer; border:1px solid #26263a; background:transparent; border-radius:6px; padding:3px 7px;">Amanhã</button>

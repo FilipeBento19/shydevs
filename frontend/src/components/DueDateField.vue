@@ -16,7 +16,11 @@ const quickBtnStyle = 'border:1px solid #26263a; background:transparent; border-
 
 <template>
   <div style="display:flex; gap:7px; flex-wrap:wrap;">
-    <input type="date" :aria-label="label" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" style="flex:1; min-width:150px; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:9px 11px; font-size:12.5px; color:#c7c5dc; outline:none;" />
+    <div style="position:relative; flex:1; min-width:150px;">
+      <input type="date" :aria-label="label" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)"
+        :style="{ width: '100%', boxSizing: 'border-box', border: '1px solid #26263a', background: '#0e0e14', borderRadius: '9px', padding: '9px 11px', fontSize: '12.5px', color: modelValue ? '#c7c5dc' : 'transparent', outline: 'none' }" />
+      <span v-if="!modelValue" style="position:absolute; left:11px; top:50%; transform:translateY(-50%); font-size:12.5px; color:#7f7d97; pointer-events:none;">Sem prazo</span>
+    </div>
     <button type="button" @click="setQuickDate(0)" :style="quickBtnStyle">Hoje</button>
     <button type="button" @click="setQuickDate(1)" :style="quickBtnStyle">Amanhã</button>
     <button type="button" @click="setQuickDate(7)" :style="quickBtnStyle">Próxima semana</button>
