@@ -56,8 +56,15 @@ button {
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
+/* Fixed-width box so icons reserve their final size before the uicons
+   webfont finishes loading — otherwise the fallback glyph's advance width
+   differs from the real icon's, and layout (e.g. the nav's sliding pill)
+   visibly jumps once the font swaps in, especially on a hard refresh. */
 .fi {
+  display: inline-block;
+  width: 1em;
   line-height: 1;
+  text-align: center;
 }
 
 /* Accessible keyboard-focus indicator. We keep the default outline suppressed
