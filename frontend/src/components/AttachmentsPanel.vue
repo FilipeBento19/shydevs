@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '../api'
 import { auth } from '../auth'
+import { vAutogrow } from '../directives/autogrow'
 import { listEnter, listLeave } from '../motion'
 
 const props = defineProps({
@@ -16,12 +17,7 @@ const confirmDeleteId = ref(null)
 
 const canUpload = computed(() => auth.isLoggedIn)
 
-const KIND_OPTIONS = [
-  { value: 'image', label: 'Imagem', icon: 'fi-sr-picture' },
-  { value: 'video', label: 'Vídeo', icon: 'fi-sr-video-camera' },
-  { value: 'link', label: 'Link', icon: 'fi-sr-link' },
-]
-const form = reactive({ kind: 'image', url: '', caption: '' })
+const form = reactive({ caption: '' })
 const fileInput = ref(null)
 const selectedFileName = ref('')
 const submitting = ref(false)
@@ -47,11 +43,7 @@ watch(() => props.taskId, load)
 async function submit() {
   error.value = ''
   const file = fileInput.value?.files?.[0]
-  if (form.kind === 'link' && !form.url.trim()) {
-    error.value = 'Informe a URL do link.'
-    return
-  }
-  if (form.kind !== 'link' && !file) {
+  if (!file) {
     error.value = 'Escolha um arquivo para enviar.'
     return
   }
@@ -59,13 +51,10 @@ async function submit() {
   try {
     const created = await api.createAttachment({
       task: props.taskId,
-      kind: form.kind,
-      url: form.kind === 'link' ? form.url.trim() : '',
       caption: form.caption.trim(),
-      file: form.kind !== 'link' ? file : null,
+      file,
     })
     attachments.value.unshift(created)
-    form.url = ''
     form.caption = ''
     if (fileInput.value) fileInput.value.value = ''
     selectedFileName.value = ''
@@ -102,12 +91,27 @@ function fmtDate(iso) {
   const d = new Date(iso)
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
+
+function attachmentHref(attachment) {
+  return attachment.file || attachment.url || '#'
+}
+
+function attachmentName(attachment) {
+  if (attachment.file_name) return attachment.file_name
+  const source = attachment.file || attachment.url
+  if (!source) return 'Arquivo anexado'
+  try {
+    return decodeURIComponent(source.split('?')[0].split('/').pop()) || 'Arquivo anexado'
+  } catch (e) {
+    return 'Arquivo anexado'
+  }
+}
 </script>
 
 <template>
   <div>
     <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
-      Anexos (imagens, vídeos, links)
+      Arquivos anexados
       <span style="font-weight:500; color:#8b899f; font-size:11px;">{{ attachments.length }}</span>
     </div>
 
@@ -115,22 +119,17 @@ function fmtDate(iso) {
 
     <TransitionGroup v-else tag="div" @enter="listEnter" @leave="listLeave" :css="false" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
       <div v-for="(a, i) in attachments" :key="a.id" :data-index="i" style="background:#0e0e14; border:1px solid #22222f; border-radius:10px; padding:10px; display:flex; gap:10px; align-items:flex-start;">
-        <a v-if="a.kind === 'image' && a.file" :href="a.file" target="_blank" rel="noopener" style="flex:none;">
-          <img :src="a.file" alt="" style="width:56px; height:56px; object-fit:cover; border-radius:8px; display:block;" />
-        </a>
-        <a v-else-if="a.kind === 'video' && a.file" :href="a.file" target="_blank" rel="noopener" style="flex:none; width:56px; height:56px; border-radius:8px; background:#1c1c28; display:flex; align-items:center; justify-content:center; color:#7c6fff; font-size:18px;">
-          <i class="fi fi-sr-play" aria-hidden="true"></i>
-        </a>
-        <a v-else :href="a.url || a.file" target="_blank" rel="noopener" style="flex:none; width:56px; height:56px; border-radius:8px; background:#1c1c28; display:flex; align-items:center; justify-content:center; color:#7c6fff; font-size:18px;">
-          <i :class="`fi ${a.kind === 'link' ? 'fi-sr-link' : 'fi-sr-file'}`" aria-hidden="true"></i>
+        <a :href="attachmentHref(a)" target="_blank" rel="noopener" :aria-label="`Abrir ${attachmentName(a)}`" style="flex:none; width:48px; height:48px; border-radius:9px; background:rgba(124,111,255,.1); border:1px solid rgba(124,111,255,.2); display:flex; align-items:center; justify-content:center; color:#9d93ff; font-size:17px;">
+          <i class="fi fi-sr-file" aria-hidden="true"></i>
         </a>
 
         <div style="flex:1; min-width:0;">
           <div style="font-size:12.5px; font-weight:700; color:#f5f4fb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-            {{ a.caption || (a.kind === 'link' ? a.url : 'Sem legenda') }}
+            {{ a.caption || attachmentName(a) }}
           </div>
-          <a v-if="a.kind === 'link'" :href="a.url" target="_blank" rel="noopener" style="font-size:11px; color:#7c6fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block;">{{ a.url }}</a>
-          <div style="font-size:11px; color:#8b899f; margin-top:2px;">{{ a.uploaded_by_name || 'Alguém' }} · {{ fmtDate(a.created_at) }}</div>
+          <div style="margin-top:3px; font-size:10.5px; color:#77758d; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ attachmentName(a) }}</div>
+          <div style="font-size:10.5px; color:#8b899f; margin-top:3px;">{{ a.uploaded_by_name || 'Alguém' }} · {{ fmtDate(a.created_at) }}</div>
+          <a :href="attachmentHref(a)" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:4px; margin-top:6px; color:#9d93ff; font-size:10.5px; font-weight:700; text-decoration:none;"><i class="fi fi-sr-arrow-up-right-from-square" aria-hidden="true"></i>Abrir arquivo</a>
         </div>
 
         <button v-if="canDelete(a)" @click="removeAttachment(a)"
@@ -143,27 +142,16 @@ function fmtDate(iso) {
     <div v-if="!loading && !attachments.length" style="font-size:12px; color:#8f8da8; margin-bottom:10px;">Nenhum anexo ainda.</div>
 
     <div v-if="canUpload" style="background:#0e0e14; border:1px solid #22222f; border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:8px;">
-      <div role="group" aria-label="Tipo de anexo" style="display:flex; gap:6px;">
-        <button v-for="k in KIND_OPTIONS" :key="k.value" type="button" @click="form.kind = k.value" :aria-pressed="form.kind === k.value"
-          :style="{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '8px', padding: '7px 0', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer', border: `1px solid ${form.kind === k.value ? '#7c6fff' : '#26263a'}`, background: form.kind === k.value ? 'rgba(124,111,255,.14)' : '#14141d', color: form.kind === k.value ? '#cfc9ff' : '#c7c5dc' }">
-          <i :class="`fi ${k.icon}`" aria-hidden="true"></i>{{ k.label }}
-        </button>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <label for="attachment-file" style="flex:none; display:inline-flex; align-items:center; gap:6px; border:1px solid #353348; background:#1c1c28; border-radius:8px; padding:8px 12px; font-size:11.5px; font-weight:700; color:#d0cde0; cursor:pointer; white-space:nowrap;">
+          <i class="fi fi-sr-folder-upload" aria-hidden="true"></i>Escolher arquivo
+        </label>
+        <input id="attachment-file" ref="fileInput" type="file" @change="onFileChange" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);" />
+        <span style="font-size:11.5px; color:#8f8da8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ selectedFileName || 'Qualquer formato de arquivo' }}</span>
       </div>
 
-      <label v-if="form.kind === 'link'" class="sr-only" for="attachment-url">URL do link</label>
-      <input v-if="form.kind === 'link'" id="attachment-url" v-model="form.url" placeholder="https://…" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#14141d; border-radius:8px; padding:8px 10px; font-size:12px; color:#f5f4fb; outline:none;" />
-      <template v-else>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <label for="attachment-file" style="flex:none; display:inline-flex; align-items:center; gap:6px; border:1px solid #26263a; background:#1c1c28; border-radius:8px; padding:8px 12px; font-size:11.5px; font-weight:700; color:#c7c5dc; cursor:pointer; white-space:nowrap;">
-            <i class="fi fi-sr-folder-upload" aria-hidden="true"></i>Escolher arquivo
-          </label>
-          <input id="attachment-file" ref="fileInput" type="file" @change="onFileChange" :accept="form.kind === 'image' ? 'image/*' : form.kind === 'video' ? 'video/*' : undefined" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);" />
-          <span style="font-size:11.5px; color:#8f8da8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ selectedFileName || 'Nenhum arquivo escolhido' }}</span>
-        </div>
-      </template>
-
       <label class="sr-only" for="attachment-caption">Legenda</label>
-      <input id="attachment-caption" v-model="form.caption" placeholder="Legenda (opcional)" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#14141d; border-radius:8px; padding:8px 10px; font-size:12px; color:#f5f4fb; outline:none;" />
+      <textarea id="attachment-caption" v-autogrow v-model="form.caption" rows="1" maxlength="200" placeholder="Legenda do arquivo (opcional)" style="width:100%; min-height:36px; box-sizing:border-box; border:1px solid #26263a; background:#14141d; border-radius:8px; padding:8px 10px; font:inherit; font-size:12px; line-height:1.5; color:#f5f4fb; outline:none;"></textarea>
 
       <div v-if="error" style="font-size:11.5px; color:#ff8f98;">{{ error }}</div>
 
@@ -172,6 +160,6 @@ function fmtDate(iso) {
         <i v-else class="fi fi-sr-cloud-upload-alt" aria-hidden="true"></i>{{ submitting ? 'Enviando…' : 'Enviar anexo' }}
       </button>
     </div>
-    <div v-else style="font-size:11.5px; color:#8f8da8;">Faça login para anexar imagens, vídeos ou links de referência.</div>
+    <div v-else style="font-size:11.5px; color:#8f8da8;">Faça login para anexar arquivos.</div>
   </div>
 </template>

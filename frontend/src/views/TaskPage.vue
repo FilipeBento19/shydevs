@@ -29,6 +29,7 @@ const notFound = ref(false)
 const canEdit = computed(() => !!auth.state.person?.is_admin)
 const isOwner = computed(() => !canEdit.value && task.value?.assignee === auth.state.person?.id)
 const canEditStatus = computed(() => canEdit.value || isOwner.value)
+const canToggleChecklist = computed(() => canEdit.value || isOwner.value)
 
 const form = reactive({
   title: '', description: '', role: '', assignee: null, due_date: '', priority: '', status: '', completion_note: '',
@@ -183,7 +184,7 @@ async function addSubtask() {
   }
 }
 async function toggleSubtask(st) {
-  if (!canEdit.value) return
+  if (!canToggleChecklist.value) return
   const next = !st.done
   st.done = next
   try {
@@ -276,7 +277,7 @@ function setQuickDate(offsetDays) {
                   </div>
                   <div style="position:relative;">
                     <input type="date" aria-label="Prazo" v-model="form.due_date" :disabled="!canEdit"
-                      :style="{ width: '100%', boxSizing: 'border-box', border: '1px solid #26263a', background: '#0e0e14', borderRadius: '9px', padding: '9px 11px', fontSize: '12.5px', color: form.due_date ? '#c7c5dc' : 'transparent', outline: 'none' }" />
+                      :style="{ width: '100%', boxSizing: 'border-box', border: '1px solid #26263a', background: canEdit ? '#0e0e14' : '#131319', borderRadius: '9px', padding: '9px 11px', fontSize: '12.5px', color: form.due_date ? (canEdit ? '#c7c5dc' : '#9a97b8') : 'transparent', outline: 'none', cursor: canEdit ? 'default' : 'not-allowed' }" />
                     <span v-if="!form.due_date" style="position:absolute; left:11px; top:50%; transform:translateY(-50%); font-size:12.5px; color:#7f7d97; pointer-events:none;">Sem prazo</span>
                   </div>
                   <div v-if="canEdit" style="display:flex; gap:5px; margin-top:6px; flex-wrap:wrap;">
@@ -319,9 +320,9 @@ function setQuickDate(offsetDays) {
               <span style="font-weight:500; color:#8b899f; font-size:11px;">{{ subtasks.filter(s => s.done).length }}/{{ subtasks.length }}</span>
             </div>
             <TransitionGroup tag="div" @enter="listEnter" @leave="listLeave" :css="false" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
-              <div v-for="(st, i) in subtasks" :key="st.id" :data-index="i" style="display:flex; align-items:center; gap:8px; background:#0e0e14; border:1px solid #22222f; border-radius:8px; padding:8px 10px;">
-                <Checkbox :model-value="st.done" :disabled="!canEdit" @update:model-value="toggleSubtask(st)" :aria-label="`Marcar etapa: ${st.title}`" />
-                <span :style="{ flex: 1, fontSize: '12.5px', color: st.done ? '#8f8da8' : '#e4e2f1', textDecoration: st.done ? 'line-through' : 'none' }">{{ st.title }}</span>
+              <div v-for="(st, i) in subtasks" :key="st.id" :data-index="i" :style="{ display: 'flex', alignItems: 'center', gap: '8px', background: canToggleChecklist ? '#0e0e14' : '#131319', border: '1px solid #22222f', borderRadius: '8px', padding: '8px 10px' }">
+                <Checkbox :model-value="st.done" :disabled="!canToggleChecklist" @update:model-value="toggleSubtask(st)" :aria-label="`Marcar etapa: ${st.title}`" />
+                <span :style="{ flex: 1, fontSize: '12.5px', color: st.done || !canToggleChecklist ? '#8f8da8' : '#e4e2f1', textDecoration: st.done ? 'line-through' : 'none' }">{{ st.title }}</span>
                 <button v-if="canEdit" type="button" @click="removeSubtask(st)" :aria-label="`Remover etapa: ${st.title}`" style="border:none; background:transparent; color:#8f8da8; cursor:pointer; font-size:12px;"><i class="fi fi-sr-cross-small" aria-hidden="true"></i></button>
               </div>
             </TransitionGroup>

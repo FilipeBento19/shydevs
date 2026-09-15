@@ -17,6 +17,17 @@ from .serializers import (
 )
 
 
+def log_admin_event(actor, message, event_type=Activity.EventType.SYSTEM, details=None, task=None):
+    Activity.objects.create(
+        task=task,
+        actor=actor,
+        message=message,
+        event_type=event_type,
+        visibility=Activity.Visibility.ADMIN,
+        details=details or {},
+    )
+
+
 class IsAdminOrReadOnly(permissions.BasePermission):
     """Anyone can read; only the admin person may create/update/delete."""
 
@@ -51,6 +62,28 @@ class TaskPermission(permissions.BasePermission):
         return request.method == 'PATCH' and obj.assignee_id == getattr(user, 'id', None)
 
 
+class SubtaskPermission(permissions.BasePermission):
+    """Admins manage checklist structure; task owners may only toggle items."""
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        user = request.user
+        if not (user and getattr(user, 'is_authenticated', False)):
+            return False
+        if getattr(user, 'is_admin', False):
+            return True
+        return request.method == 'PATCH'
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        user = request.user
+        if getattr(user, 'is_admin', False):
+            return True
+        return request.method == 'PATCH' and obj.task.assignee_id == getattr(user, 'id', None)
+
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -68,6 +101,7 @@ class LoginView(APIView):
         token, _ = AuthToken.objects.get_or_create(
             person=person, defaults={'key': AuthToken.generate_key()}
         )
+        log_admin_event(person, f'{person.name} entrou no sistema.', details={'ação': 'login'})
         return Response({'token': token.key, 'person': PersonSerializer(person).data})
 
 
@@ -75,6 +109,7 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        log_admin_event(request.user, f'{request.user.name} saiu do sistema.', details={'ação': 'logout'})
         AuthToken.objects.filter(person=request.user).delete()
         return Response(status=http_status.HTTP_204_NO_CONTENT)
 
@@ -103,6 +138,27 @@ class PersonViewSet(viewsets.ModelViewSet):
             and Person.objects.filter(is_admin=True).exclude(pk=instance.pk).count() == 0
         )
 
+    def perform_create(self, serializer):
+        person = serializer.save()
+        log_admin_event(
+            self.request.user,
+            f'{self.request.user.name} adicionou {person.name} à equipe.',
+            Activity.EventType.TEAM,
+            {'pessoa': person.name, 'cargos': list(person.roles.values_list('name', flat=True)), 'admin': person.is_admin},
+        )
+
+    def perform_update(self, serializer):
+        person = serializer.instance
+        before = {'nome': person.name, 'cargos': list(person.roles.values_list('name', flat=True)), 'admin': person.is_admin}
+        person = serializer.save()
+        after = {'nome': person.name, 'cargos': list(person.roles.values_list('name', flat=True)), 'admin': person.is_admin}
+        changes = {key: {'antes': before[key], 'depois': after[key]} for key in before if before[key] != after[key]}
+        if changes:
+            log_admin_event(
+                self.request.user, f'{self.request.user.name} atualizou o perfil de {person.name}.',
+                Activity.EventType.TEAM, {'alterações': changes},
+            )
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         if self._would_remove_last_admin(instance, request.data):
@@ -119,6 +175,10 @@ class PersonViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         if instance.is_admin and Person.objects.filter(is_admin=True).exclude(pk=instance.pk).count() == 0:
             return Response({'detail': 'Precisa existir pelo menos um administrador.'}, status=400)
+        log_admin_event(
+            request.user, f'{request.user.name} removeu {instance.name} da equipe.',
+            Activity.EventType.TEAM, {'pessoa removida': instance.name},
+        )
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])
@@ -133,6 +193,10 @@ class PersonViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Nenhum arquivo enviado.'}, status=400)
         person.photo = file
         person.save()
+        log_admin_event(
+            user, f'{user.name} alterou a foto de perfil de {person.name}.',
+            Activity.EventType.TEAM, {'perfil': person.name, 'campo': 'foto'},
+        )
         return Response(PersonSerializer(person, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='change-password')
@@ -147,6 +211,10 @@ class PersonViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Informe a nova senha.'}, status=400)
         person.set_password(new_password)
         person.save()
+        log_admin_event(
+            user, f'{user.name} alterou a senha de {person.name}.',
+            Activity.EventType.TEAM, {'perfil': person.name, 'campo': 'senha', 'conteúdo': 'não registrado'},
+        )
         return Response({'detail': 'Senha alterada com sucesso.'})
 
 
@@ -154,6 +222,24 @@ class RoleViewSet(viewsets.ModelViewSet):
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    def perform_create(self, serializer):
+        role = serializer.save()
+        log_admin_event(
+            self.request.user, f'{self.request.user.name} criou o cargo {role.name}.',
+            Activity.EventType.TEAM, {'cargo': role.name, 'cor': role.color},
+        )
+
+    def perform_update(self, serializer):
+        role = serializer.instance
+        before = {'nome': role.name, 'cor': role.color, 'ordem': role.order}
+        role = serializer.save()
+        after = {'nome': role.name, 'cor': role.color, 'ordem': role.order}
+        log_admin_event(
+            self.request.user, f'{self.request.user.name} atualizou o cargo {role.name}.',
+            Activity.EventType.TEAM,
+            {'alterações': {key: {'antes': before[key], 'depois': after[key]} for key in before if before[key] != after[key]}},
+        )
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -163,6 +249,10 @@ class RoleViewSet(viewsets.ModelViewSet):
                 {'detail': 'Esse cargo está em uso por pessoas ou tarefas e não pode ser removido.'},
                 status=400,
             )
+        log_admin_event(
+            request.user, f'{request.user.name} removeu o cargo {instance.name}.',
+            Activity.EventType.TEAM, {'cargo removido': instance.name},
+        )
         return super().destroy(request, *args, **kwargs)
 
 
@@ -227,6 +317,15 @@ class TaskViewSet(viewsets.ModelViewSet):
             )
 
         return qs
+
+    def perform_destroy(self, instance):
+        log_admin_event(
+            self.request.user,
+            f'{self.request.user.name} excluiu a tarefa {instance.code} · {instance.title}.',
+            Activity.EventType.TASK_UPDATED,
+            {'tarefa excluída': instance.code, 'título': instance.title, 'responsável': instance.assignee_name if hasattr(instance, 'assignee_name') else (instance.assignee.name if instance.assignee else 'ninguém')},
+        )
+        instance.delete()
 
     def _actor(self):
         user = self.request.user
@@ -338,32 +437,70 @@ class TaskViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['delete'], url_path='bulk-delete')
     def bulk_delete(self, request):
         ids = request.data.get('ids') or []
+        tasks = list(Task.objects.filter(id__in=ids).select_related('assignee'))
+        for task in tasks:
+            log_admin_event(
+                request.user, f'{request.user.name} excluiu a tarefa {task.code} · {task.title}.',
+                Activity.EventType.TASK_UPDATED,
+                {'tarefa excluída': task.code, 'título': task.title},
+            )
         deleted, _ = Task.objects.filter(id__in=ids).delete()
         return Response({'deleted': deleted})
 
 
 class SubtaskViewSet(viewsets.ModelViewSet):
     serializer_class = SubtaskSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [SubtaskPermission]
 
     def get_queryset(self):
-        qs = Subtask.objects.all()
+        qs = Subtask.objects.select_related('task').all()
         task_id = self.request.query_params.get('task')
         if task_id:
             qs = qs.filter(task_id=task_id)
         return qs
 
+    def partial_update(self, request, *args, **kwargs):
+        if not getattr(request.user, 'is_admin', False) and set(request.data) - {'done'}:
+            return Response(
+                {'detail': 'Você só pode marcar ou desmarcar etapas da sua própria tarefa.'},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
+        return super().partial_update(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        instance = Subtask(**serializer.validated_data)
+        instance._activity_actor = self.request.user
+        instance.save()
+        serializer.instance = instance
+
+    def perform_update(self, serializer):
+        serializer.instance._activity_actor = self.request.user
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        instance._activity_actor = self.request.user
+        instance.delete()
+
 
 class ActivityViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ActivitySerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         qs = Activity.objects.select_related('actor', 'task').all()
         task_id = self.request.query_params.get('task')
         if task_id:
             qs = qs.filter(task_id=task_id)
+        scope = self.request.query_params.get('scope', 'normal')
+        if scope == 'admin' and getattr(self.request.user, 'is_admin', False):
+            return qs[:500]
+        qs = qs.filter(visibility=Activity.Visibility.PUBLIC)
         return qs[:200]
+
+    def list(self, request, *args, **kwargs):
+        if request.query_params.get('scope') == 'admin' and not getattr(request.user, 'is_admin', False):
+            return Response({'detail': 'Histórico administrativo restrito.'}, status=http_status.HTTP_403_FORBIDDEN)
+        return super().list(request, *args, **kwargs)
 
 
 class CommentPermission(permissions.BasePermission):
@@ -397,8 +534,22 @@ class CommentViewSet(viewsets.ModelViewSet):
         Activity.objects.create(
             task=comment.task,
             actor=self.request.user,
-            message=f'{self.request.user.name} comentou na tarefa',
+            event_type=Activity.EventType.COMMENT,
+            visibility=Activity.Visibility.ADMIN,
+            message=f'{self.request.user.name} comentou em {comment.task.code} · {comment.task.title}.',
+            details={'comentário': comment.body},
         )
+
+    def perform_destroy(self, instance):
+        Activity.objects.create(
+            task=instance.task,
+            actor=self.request.user,
+            event_type=Activity.EventType.COMMENT,
+            visibility=Activity.Visibility.ADMIN,
+            message=f'{self.request.user.name} removeu um comentário de {instance.task.code}.',
+            details={'comentário removido': instance.body},
+        )
+        instance.delete()
 
 
 class IsAuthenticatedOrReadOnly(permissions.BasePermission):
@@ -433,7 +584,15 @@ class AttachmentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        serializer.save(uploaded_by=user if getattr(user, 'is_authenticated', False) else None)
+        serializer.save(
+            kind=Attachment.Kind.FILE,
+            url='',
+            uploaded_by=user if getattr(user, 'is_authenticated', False) else None,
+        )
+
+    def perform_destroy(self, instance):
+        instance._activity_actor = self.request.user
+        instance.delete()
 
 
 class BootstrapAdminView(APIView):
@@ -485,6 +644,12 @@ class ProjectSettingsView(APIView):
         if not name:
             return Response({'detail': 'Nome inválido.'}, status=400)
         settings_obj = ProjectSettings.load()
+        previous_name = settings_obj.name
         settings_obj.name = name[:120]
         settings_obj.save()
+        log_admin_event(
+            user, f'{user.name} renomeou o projeto para {settings_obj.name}.',
+            Activity.EventType.SETTINGS,
+            {'nome do projeto': {'antes': previous_name, 'depois': settings_obj.name}},
+        )
         return Response({'name': settings_obj.name})

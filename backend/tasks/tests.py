@@ -1,8 +1,12 @@
+import tempfile
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Comment, Person, Task
+from .models import Activity, Comment, Person, Subtask, Task
 
 
 class CommentApiTests(APITestCase):
@@ -70,3 +74,116 @@ class CommentApiTests(APITestCase):
         response = self.client.get(reverse('task-dashboard'))
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_task_owner_can_toggle_own_checklist_item(self):
+        self.task.assignee = self.author
+        self.task.save(update_fields=['assignee'])
+        subtask = Subtask.objects.create(task=self.task, title='Revisar entrega')
+        self.client.force_authenticate(user=self.author)
+
+        response = self.client.patch(reverse('subtask-detail', args=[subtask.id]), {'done': True}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        subtask.refresh_from_db()
+        self.assertTrue(subtask.done)
+
+    def test_task_owner_cannot_change_checklist_item_text(self):
+        self.task.assignee = self.author
+        self.task.save(update_fields=['assignee'])
+        subtask = Subtask.objects.create(task=self.task, title='Texto original')
+        self.client.force_authenticate(user=self.author)
+
+        response = self.client.patch(reverse('subtask-detail', args=[subtask.id]), {'title': 'Alterado'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        subtask.refresh_from_db()
+        self.assertEqual(subtask.title, 'Texto original')
+
+    def test_other_person_cannot_toggle_someone_elses_checklist_item(self):
+        self.task.assignee = self.author
+        self.task.save(update_fields=['assignee'])
+        subtask = Subtask.objects.create(task=self.task, title='Etapa protegida')
+        self.client.force_authenticate(user=self.other_person)
+
+        response = self.client.patch(reverse('subtask-detail', args=[subtask.id]), {'done': True}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        subtask.refresh_from_db()
+        self.assertFalse(subtask.done)
+
+
+class AttachmentApiTests(APITestCase):
+    def setUp(self):
+        self.media_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.media_directory.cleanup)
+        self.media_override = override_settings(MEDIA_ROOT=self.media_directory.name)
+        self.media_override.enable()
+        self.addCleanup(self.media_override.disable)
+        self.person = Person.objects.create(name='Pessoa com arquivo')
+        self.task = Task.objects.create(title='Tarefa com arquivo', role='Scripter')
+        self.client.force_authenticate(user=self.person)
+
+    def test_upload_accepts_any_file_without_attachment_type(self):
+        uploaded = SimpleUploadedFile(
+            'material.custom',
+            b'conteudo de teste',
+            content_type='application/octet-stream',
+        )
+
+        response = self.client.post(
+            reverse('attachment-list'),
+            {'task': self.task.id, 'caption': 'Material da entrega', 'file': uploaded},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['kind'], 'file')
+        self.assertEqual(response.data['caption'], 'Material da entrega')
+        self.assertTrue(response.data['file_name'].endswith('.custom'))
+
+    def test_upload_requires_a_file(self):
+        response = self.client.post(
+            reverse('attachment-list'),
+            {'task': self.task.id, 'caption': 'Sem arquivo'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ActivityApiTests(APITestCase):
+    def setUp(self):
+        self.person = Person.objects.create(name='Pessoa comum')
+        self.admin = Person.objects.create(name='Administrador', is_admin=True)
+        self.task = Task.objects.create(title='Evento testado', role='Scripter', assignee=self.person)
+        Activity.objects.create(
+            task=self.task, actor=self.person, message='Evento restrito',
+            event_type=Activity.EventType.TASK_UPDATED,
+            visibility=Activity.Visibility.ADMIN,
+            details={'prioridade': {'antes': 'Baixa', 'depois': 'Alta'}},
+        )
+
+    def test_normal_history_only_returns_public_events(self):
+        self.client.force_authenticate(user=self.person)
+
+        response = self.client.get(reverse('activity-list'), {'scope': 'normal'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data)
+        self.assertTrue(all(item['visibility'] == 'public' for item in response.data))
+
+    def test_regular_user_cannot_access_admin_history(self):
+        self.client.force_authenticate(user=self.person)
+
+        response = self.client.get(reverse('activity-list'), {'scope': 'admin'})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_history_contains_detailed_restricted_events(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(reverse('activity-list'), {'scope': 'admin'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        restricted = next(item for item in response.data if item['message'] == 'Evento restrito')
+        self.assertEqual(restricted['details']['prioridade']['depois'], 'Alta')

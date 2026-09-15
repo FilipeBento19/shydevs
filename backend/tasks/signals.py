@@ -1,28 +1,39 @@
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
-from .models import Activity, Attachment, Status, Task
+from .models import Activity, Attachment, Status, Subtask, Task
+
+
+def actor_name(actor):
+    return actor.name if actor else 'Sistema'
+
+
+def display(value):
+    return 'Não informado' if value is None or value == '' else str(value)
 
 
 @receiver(pre_save, sender=Task)
-def _stash_previous_state(sender, instance, **kwargs):
+def stash_previous_task(sender, instance, **kwargs):
     if not instance.pk:
         instance._previous = None
         return
-    try:
-        instance._previous = Task.objects.get(pk=instance.pk)
-    except Task.DoesNotExist:
-        instance._previous = None
+    instance._previous = Task.objects.select_related('assignee').filter(pk=instance.pk).first()
 
 
 @receiver(post_save, sender=Task)
-def _log_task_activity(sender, instance, created, **kwargs):
+def log_task_activity(sender, instance, created, **kwargs):
     actor = getattr(instance, '_activity_actor', None)
+    who = actor_name(actor)
+    assignee = instance.assignee.name if instance.assignee_id else 'ninguém'
 
     if created:
         Activity.objects.create(
             task=instance, actor=actor,
-            message=f'{instance.code} · {instance.title} foi criada.'
+            event_type=Activity.EventType.TASK_CREATED,
+            visibility=Activity.Visibility.PUBLIC,
+            message=f'{who} criou a tarefa {instance.code} · {instance.title} para {assignee}.',
+            details={'responsável': assignee, 'cargo': instance.role, 'prioridade': instance.priority,
+                     'prazo': display(instance.due_date), 'status': instance.status},
         )
         return
 
@@ -31,44 +42,106 @@ def _log_task_activity(sender, instance, created, **kwargs):
         return
 
     if previous.status != instance.status:
+        completed = instance.status == Status.CONCLUIDA
         Activity.objects.create(
             task=instance, actor=actor,
-            message=f'{instance.code} mudou de status: {previous.status} → {instance.status}.'
+            event_type=Activity.EventType.TASK_COMPLETED if completed else Activity.EventType.TASK_STATUS,
+            visibility=Activity.Visibility.PUBLIC if completed else Activity.Visibility.ADMIN,
+            message=(f'{who} concluiu a tarefa {instance.code} · {instance.title}.' if completed
+                     else f'{who} alterou o status de {instance.code}: {previous.status} → {instance.status}.'),
+            details={'antes': previous.status, 'depois': instance.status},
         )
-        if instance.status == Status.CONCLUIDA and instance.completion_note:
-            Activity.objects.create(
-                task=instance, actor=actor,
-                message=f'Nota de conclusão de {instance.code}: "{instance.completion_note}"'
-            )
-    elif previous.completion_note != instance.completion_note and instance.completion_note:
-        Activity.objects.create(
-            task=instance, actor=actor,
-            message=f'Nota de conclusão de {instance.code} foi atualizada: "{instance.completion_note}"'
-        )
+
     if previous.assignee_id != instance.assignee_id:
         old_name = previous.assignee.name if previous.assignee_id else 'ninguém'
-        new_name = instance.assignee.name if instance.assignee_id else 'ninguém'
         Activity.objects.create(
             task=instance, actor=actor,
-            message=f'{instance.code} foi reatribuída de {old_name} para {new_name}.'
+            event_type=Activity.EventType.TASK_ASSIGNED,
+            visibility=Activity.Visibility.PUBLIC,
+            message=f'{who} atribuiu a tarefa {instance.code} · {instance.title} para {assignee}.',
+            details={'antes': old_name, 'depois': assignee},
         )
-    if previous.checked != instance.checked:
+
+    tracked = {'title': 'título', 'description': 'descrição', 'role': 'cargo', 'due_date': 'prazo',
+               'priority': 'prioridade', 'checked': 'marcação', 'completion_note': 'nota de conclusão'}
+    changes = {}
+    for field, label in tracked.items():
+        before, after = getattr(previous, field), getattr(instance, field)
+        if before != after:
+            changes[label] = {'antes': display(before), 'depois': display(after)}
+    if changes:
         Activity.objects.create(
             task=instance, actor=actor,
-            message=f'{instance.code} foi {"marcada" if instance.checked else "desmarcada"}.'
+            event_type=Activity.EventType.TASK_UPDATED,
+            visibility=Activity.Visibility.ADMIN,
+            message=f'{who} atualizou {len(changes)} campo(s) de {instance.code} · {instance.title}.',
+            details={'alterações': changes},
         )
 
 
-KIND_LABELS = {'image': 'uma imagem', 'video': 'um vídeo', 'link': 'um link', 'file': 'um arquivo'}
+@receiver(pre_save, sender=Subtask)
+def stash_previous_subtask(sender, instance, **kwargs):
+    instance._previous = Subtask.objects.filter(pk=instance.pk).first() if instance.pk else None
+
+
+@receiver(post_save, sender=Subtask)
+def log_subtask_activity(sender, instance, created, **kwargs):
+    actor = getattr(instance, '_activity_actor', None)
+    previous = getattr(instance, '_previous', None)
+    if not created and previous and previous.done == instance.done and previous.title == instance.title:
+        return
+    action = 'adicionou' if created else 'marcou' if instance.done else 'desmarcou'
+    Activity.objects.create(
+        task=instance.task, actor=actor,
+        event_type=Activity.EventType.CHECKLIST,
+        visibility=Activity.Visibility.ADMIN,
+        message=f'{actor_name(actor)} {action} a etapa “{instance.title}” em {instance.task.code}.',
+        details={'etapa': instance.title, 'concluída': instance.done},
+    )
+
+
+@receiver(post_delete, sender=Subtask)
+def log_deleted_subtask(sender, instance, origin=None, **kwargs):
+    if isinstance(origin, Task):
+        return
+    actor = getattr(instance, '_activity_actor', None)
+    if not actor:
+        return
+    Activity.objects.create(
+        task=instance.task, actor=actor,
+        event_type=Activity.EventType.CHECKLIST,
+        visibility=Activity.Visibility.ADMIN,
+        message=f'{actor_name(actor)} removeu a etapa “{instance.title}” de {instance.task.code}.',
+        details={'etapa removida': instance.title},
+    )
 
 
 @receiver(post_save, sender=Attachment)
-def _log_attachment_activity(sender, instance, created, **kwargs):
+def log_attachment_activity(sender, instance, created, **kwargs):
     if not created:
         return
-    who = instance.uploaded_by.name if instance.uploaded_by_id else 'Alguém'
+    name = instance.file.name.rsplit('/', 1)[-1] if instance.file else instance.url
     Activity.objects.create(
-        task=instance.task,
-        actor=instance.uploaded_by,
-        message=f'{who} anexou {KIND_LABELS.get(instance.kind, "um arquivo")} em {instance.task.code}.'
+        task=instance.task, actor=instance.uploaded_by,
+        event_type=Activity.EventType.ATTACHMENT,
+        visibility=Activity.Visibility.ADMIN,
+        message=f'{actor_name(instance.uploaded_by)} anexou “{instance.caption or name}” em {instance.task.code}.',
+        details={'arquivo': name, 'legenda': instance.caption or 'Sem legenda'},
+    )
+
+
+@receiver(post_delete, sender=Attachment)
+def log_deleted_attachment(sender, instance, origin=None, **kwargs):
+    if isinstance(origin, Task):
+        return
+    actor = getattr(instance, '_activity_actor', None)
+    if not actor:
+        return
+    name = instance.file.name.rsplit('/', 1)[-1] if instance.file else instance.url
+    Activity.objects.create(
+        task=instance.task, actor=actor,
+        event_type=Activity.EventType.ATTACHMENT,
+        visibility=Activity.Visibility.ADMIN,
+        message=f'{actor_name(actor)} removeu o arquivo “{instance.caption or name}” de {instance.task.code}.',
+        details={'arquivo removido': name},
     )

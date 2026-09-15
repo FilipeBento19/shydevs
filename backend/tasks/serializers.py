@@ -78,10 +78,14 @@ class SubtaskSerializer(serializers.ModelSerializer):
 class ActivitySerializer(serializers.ModelSerializer):
     actor_name = serializers.CharField(source='actor.name', read_only=True, default=None)
     task_code = serializers.CharField(source='task.code', read_only=True, default=None)
+    task_title = serializers.CharField(source='task.title', read_only=True, default=None)
 
     class Meta:
         model = Activity
-        fields = ['id', 'task', 'task_code', 'actor', 'actor_name', 'message', 'created_at']
+        fields = [
+            'id', 'task', 'task_code', 'task_title', 'actor', 'actor_name', 'message',
+            'event_type', 'visibility', 'details', 'created_at',
+        ]
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -109,11 +113,23 @@ class CommentSerializer(serializers.ModelSerializer):
 
 class AttachmentSerializer(serializers.ModelSerializer):
     uploaded_by_name = serializers.CharField(source='uploaded_by.name', read_only=True, default=None)
+    file_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Attachment
-        fields = ['id', 'task', 'kind', 'file', 'url', 'caption', 'uploaded_by', 'uploaded_by_name', 'created_at']
+        fields = ['id', 'task', 'kind', 'file', 'file_name', 'url', 'caption', 'uploaded_by', 'uploaded_by_name', 'created_at']
         read_only_fields = ['created_at', 'uploaded_by']
+        extra_kwargs = {'kind': {'required': False}}
+
+    def get_file_name(self, obj):
+        if not obj.file:
+            return None
+        return obj.file.name.rsplit('/', 1)[-1]
+
+    def validate(self, attrs):
+        if not attrs.get('file'):
+            raise serializers.ValidationError({'file': 'Escolha um arquivo para anexar.'})
+        return attrs
 
 
 class TaskSerializer(serializers.ModelSerializer):

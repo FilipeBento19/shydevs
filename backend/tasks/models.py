@@ -110,9 +110,29 @@ class Subtask(models.Model):
 
 
 class Activity(models.Model):
+    class EventType(models.TextChoices):
+        TASK_CREATED = 'task_created', 'Tarefa criada'
+        TASK_COMPLETED = 'task_completed', 'Tarefa concluída'
+        TASK_STATUS = 'task_status', 'Status alterado'
+        TASK_ASSIGNED = 'task_assigned', 'Responsável alterado'
+        TASK_UPDATED = 'task_updated', 'Tarefa atualizada'
+        CHECKLIST = 'checklist', 'Checklist'
+        COMMENT = 'comment', 'Comentário'
+        ATTACHMENT = 'attachment', 'Anexo'
+        TEAM = 'team', 'Equipe'
+        SETTINGS = 'settings', 'Configuração'
+        SYSTEM = 'system', 'Sistema'
+
+    class Visibility(models.TextChoices):
+        PUBLIC = 'public', 'Equipe'
+        ADMIN = 'admin', 'Somente administradores'
+
     task = models.ForeignKey(Task, on_delete=models.CASCADE, null=True, blank=True, related_name='activities')
     actor = models.ForeignKey(Person, on_delete=models.SET_NULL, null=True, blank=True, related_name='activities')
     message = models.CharField(max_length=300)
+    event_type = models.CharField(max_length=30, choices=EventType.choices, default=EventType.SYSTEM)
+    visibility = models.CharField(max_length=10, choices=Visibility.choices, default=Visibility.ADMIN)
+    details = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

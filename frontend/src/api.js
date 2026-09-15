@@ -101,7 +101,7 @@ export const api = {
   deleteSubtask: (id) => request(`/subtasks/${id}/`, { method: 'DELETE' }),
 
   // activities
-  getActivities: (taskId) => request(`/activities/${qs({ task: taskId })}`),
+  getActivities: (taskId, scope = 'normal') => request(`/activities/${qs({ task: taskId, scope })}`),
 
   // comments
   getComments: (taskId) => request(`/comments/${qs({ task: taskId })}`),
