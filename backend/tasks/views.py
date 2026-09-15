@@ -1,3 +1,5 @@
+import os
+
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import permissions, status as http_status, viewsets
@@ -287,6 +289,38 @@ class AttachmentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         serializer.save(uploaded_by=user if getattr(user, 'is_authenticated', False) else None)
+
+
+class BootstrapAdminView(APIView):
+    """One-time-use endpoint to create/reset an admin when none can log in yet
+    (e.g. fresh production database). Disabled unless BOOTSTRAP_SECRET is set
+    in the environment; requires that exact secret in the request body."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        configured_secret = os.environ.get('BOOTSTRAP_SECRET')
+        if not configured_secret:
+            return Response({'detail': 'Não encontrado.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        if (request.data.get('secret') or '') != configured_secret:
+            return Response({'detail': 'Não encontrado.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        name = (request.data.get('name') or '').strip()
+        password = request.data.get('password') or ''
+        role = request.data.get('role') or 'Manager'
+        if not name or not password:
+            return Response({'detail': 'Informe nome e senha.'}, status=400)
+
+        person = Person.objects.filter(name__iexact=name).first()
+        if person is None:
+            person = Person(name=name, role=role, is_admin=True)
+        else:
+            person.is_admin = True
+        person.set_password(password)
+        person.save()
+
+        return Response({'detail': f'Admin "{person.name}" pronto.'})
 
 
 class ProjectSettingsView(APIView):
