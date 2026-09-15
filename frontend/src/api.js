@@ -31,6 +31,18 @@ async function request(path, options = {}) {
     throw err
   }
   if (res.status === 204) return null
+  const contentType = res.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    // Most likely VITE_API_BASE_URL is missing/wrong and this request landed on
+    // the frontend's own domain (e.g. Vercel's SPA fallback returning index.html).
+    console.error(
+      `[api] Esperava JSON de ${BASE}${path} mas recebi "${contentType || 'sem content-type'}". ` +
+      'Verifique se VITE_API_BASE_URL aponta para o backend correto.'
+    )
+    const err = new Error('Resposta inesperada do servidor (não é JSON). Confira a configuração de VITE_API_BASE_URL.')
+    err.status = res.status
+    throw err
+  }
   return res.json()
 }
 

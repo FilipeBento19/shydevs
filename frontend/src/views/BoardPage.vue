@@ -45,7 +45,7 @@ async function loadAll() {
     roles.value = roleList
     balance.value = balanceData
   } catch (e) {
-    error.value = 'Não foi possível carregar os dados do backend. Verifique se o servidor Django está rodando em http://127.0.0.1:8000.'
+    error.value = e.message || 'Não foi possível carregar os dados do backend.'
   } finally {
     loading.value = false
   }
