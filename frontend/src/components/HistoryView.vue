@@ -37,14 +37,14 @@ function fmtDate(iso) {
 
     <TransitionGroup v-else tag="div" @enter="listEnter" @leave="listLeave" :css="false" style="background:#14141d; border:1px solid #22222f; border-radius:12px; overflow:hidden;">
       <div v-for="(a, i) in activities" :key="a.id" :data-index="i" style="display:flex; gap:10px; padding:12px 14px; border-bottom:1px solid #1a1a25; align-items:flex-start;">
-        <i class="fi fi-sr-clock" style="color:#7c6fff; opacity:.8; margin-top:2px; font-size:12px;"></i>
+        <i class="fi fi-sr-clock" style="color:#7c6fff; opacity:.8; margin-top:2px; font-size:12px;" aria-hidden="true"></i>
         <div style="flex:1; min-width:0;">
           <div style="font-size:12.5px; color:#e4e2f1;">
             <span v-if="a.actor_name" style="font-weight:700; color:#f5f4fb;">{{ a.actor_name }}</span>
             <span v-else style="font-weight:700; color:#8b899f;">Sistema</span>
             — {{ a.message }}
           </div>
-          <div style="font-size:11px; color:#6f6d87; margin-top:2px;">{{ fmtDate(a.created_at) }}</div>
+          <div style="font-size:11px; color:#8f8da8; margin-top:2px;">{{ fmtDate(a.created_at) }}</div>
         </div>
       </div>
     </TransitionGroup>

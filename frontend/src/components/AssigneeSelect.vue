@@ -19,6 +19,7 @@ defineEmits(['update:modelValue'])
     <CustomSelect
       :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)"
       :options="options" :placeholder="placeholder" :disabled="disabled" width="100%"
+      label="Pessoa responsável"
     />
   </div>
 </template>

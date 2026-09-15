@@ -105,7 +105,7 @@ const maxWorkload = computed(() =>
           <div style="font-size:12.5px; font-weight:800; color:#f5f4fb; margin-bottom:12px;">Por cargo</div>
           <div v-for="[k, v] in roleEntries" :key="k" style="margin-bottom:9px;">
             <div style="display:flex; align-items:center; gap:6px; justify-content:space-between; font-size:11.5px; color:#c7c5dc; margin-bottom:4px;">
-              <span style="display:flex; align-items:center; gap:5px;"><i :class="`fi ${roleIcon(k)}`" style="opacity:.7;"></i>{{ k }}</span><span>{{ v }}</span>
+              <span style="display:flex; align-items:center; gap:5px;"><i :class="`fi ${roleIcon(k)}`" style="opacity:.7;" aria-hidden="true"></i>{{ k }}</span><span>{{ v }}</span>
             </div>
             <div style="background:#0e0e14; border-radius:6px; height:8px; overflow:hidden;">
               <div class="bar-fill" :style="{ width: (data.total ? (v / data.total) * 100 : 0) + '%', height: '100%', background: '#7c6fff', borderRadius: '6px' }"></div>

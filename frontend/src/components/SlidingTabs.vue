@@ -74,6 +74,7 @@ watch(
       :key="item.key"
       :ref="setBtnRef(item.key)"
       type="button"
+      :aria-pressed="modelValue === item.key"
       @click="onClick(item, $event)"
       :style="{
         position: 'relative', zIndex: 1, border: 'none', background: 'transparent', cursor: 'pointer',
@@ -83,7 +84,7 @@ watch(
         transition: 'color .2s ease',
       }"
     >
-      <i v-if="item.icon" :class="`fi ${item.icon}`"></i>{{ item.label }}
+      <i v-if="item.icon" :class="`fi ${item.icon}`" aria-hidden="true"></i>{{ item.label }}
       <span v-if="item.count !== undefined" style="opacity:.65;">{{ item.count }}</span>
     </button>
   </div>

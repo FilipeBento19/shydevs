@@ -112,16 +112,16 @@ async function removePerson(person) {
                 {{ p.name }}
                 <span v-if="p.is_admin" style="font-size:9.5px; font-weight:700; letter-spacing:.04em; color:#b3aaff; background:rgba(124,111,255,.16); border-radius:999px; padding:2px 7px;">ADMIN</span>
               </div>
-              <div style="font-size:11px; color:#8b899f; display:flex; align-items:center; gap:4px; margin-top:1px;"><i :class="`fi ${roleIcon(p.role)}`" style="opacity:.7;"></i>{{ p.role }}</div>
+              <div style="font-size:11px; color:#8b899f; display:flex; align-items:center; gap:4px; margin-top:1px;"><i :class="`fi ${roleIcon(p.role)}`" style="opacity:.7;" aria-hidden="true"></i>{{ p.role }}</div>
             </div>
             <div style="display:flex; gap:6px; flex:none;">
               <button @click="toggleAdmin(p)"
                 :style="{ border: '1px solid #26263a', background: 'transparent', color: p.is_admin ? '#8b899f' : '#b3aaff', borderRadius: '7px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }">
-                <i :class="`fi ${p.is_admin ? 'fi-sr-user-minus' : 'fi-sr-user-shield'}`"></i> {{ p.is_admin ? 'Tirar admin' : 'Tornar admin' }}
+                <i :class="`fi ${p.is_admin ? 'fi-sr-user-minus' : 'fi-sr-user-shield'}`" aria-hidden="true"></i> {{ p.is_admin ? 'Tirar admin' : 'Tornar admin' }}
               </button>
               <button v-if="!p.is_admin" @click="removePerson(p)"
                 :style="{ border: '1px solid rgba(224,79,95,.4)', background: confirmDeleteId === p.id ? 'rgba(224,79,95,.18)' : 'transparent', color: '#ff8f98', borderRadius: '7px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }">
-                <i class="fi fi-sr-trash-can-list"></i> {{ confirmDeleteId === p.id ? 'Confirmar?' : 'Remover' }}
+                <i class="fi fi-sr-trash-can-list" aria-hidden="true"></i> {{ confirmDeleteId === p.id ? 'Confirmar?' : 'Remover' }}
               </button>
             </div>
           </div>
@@ -132,16 +132,16 @@ async function removePerson(person) {
         <div style="font-size:12.5px; font-weight:800; color:#f5f4fb; margin-bottom:12px;">Adicionar pessoa</div>
         <div style="display:flex; flex-direction:column; gap:10px;">
           <div>
-            <div style="font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Nome</div>
-            <input v-model="form.name" @keyup.enter="addPerson" placeholder="Nome da pessoa" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none;" />
+            <label for="team-name" style="display:block; font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Nome</label>
+            <input id="team-name" v-model="form.name" @keyup.enter="addPerson" placeholder="Nome da pessoa" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none;" />
           </div>
           <div>
-            <div style="font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Cargo</div>
-            <CustomSelect v-model="form.role" :options="roleOptions" width="100%" />
+            <div id="team-role-label" style="font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Cargo</div>
+            <CustomSelect v-model="form.role" :options="roleOptions" width="100%" label="Cargo" />
           </div>
           <div>
-            <div style="font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Senha (opcional)</div>
-            <input v-model="form.password" type="password" placeholder="Para essa pessoa poder entrar" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none;" />
+            <label for="team-password" style="display:block; font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Senha (opcional)</label>
+            <input id="team-password" v-model="form.password" type="password" placeholder="Para essa pessoa poder entrar" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none;" />
           </div>
           <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#c7c5dc; cursor:pointer;">
             <input type="checkbox" v-model="form.is_admin" style="width:14px; height:14px; accent-color:#7c6fff; cursor:pointer;" />
@@ -149,7 +149,7 @@ async function removePerson(person) {
           </label>
           <div v-if="error" style="padding:8px 10px; background:rgba(224,79,95,.14); border:1px solid rgba(224,79,95,.35); border-radius:8px; color:#ff8f98; font-size:11.5px; font-weight:600;">{{ error }}</div>
           <button @click="addPerson" :disabled="submitting" style="border:none; background:#7c6fff; color:#0a0a10; border-radius:8px; padding:9px 12px; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
-            <i class="fi fi-sr-plus-small"></i>{{ submitting ? 'Adicionando…' : 'Adicionar' }}
+            <i class="fi fi-sr-plus-small" aria-hidden="true"></i>{{ submitting ? 'Adicionando…' : 'Adicionar' }}
           </button>
         </div>
       </div>

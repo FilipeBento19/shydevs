@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { nextTick, reactive, ref, watch } from 'vue'
 import { auth } from '../auth'
 import { modalEnter, modalLeave } from '../motion'
 
@@ -9,14 +9,17 @@ const emit = defineEmits(['close', 'logged-in'])
 const form = reactive({ name: '', password: '' })
 const error = ref('')
 const loading = ref(false)
+const nameInputEl = ref(null)
 
 watch(
   () => props.open,
-  (val) => {
+  async (val) => {
     if (val) {
       form.name = ''
       form.password = ''
       error.value = ''
+      await nextTick()
+      nameInputEl.value?.focus()
     }
   }
 )
@@ -41,24 +44,25 @@ async function submit() {
 </script>
 
 <template>
+  <Teleport to="body">
   <Transition :css="false" @enter="modalEnter" @leave="modalLeave">
-  <div v-if="open" @click="$emit('close')" style="position:fixed; inset:0; background:rgba(3,3,8,.82); display:flex; align-items:center; justify-content:center; padding:24px; z-index:60;">
-    <div class="modal-panel" @click.stop style="width:100%; max-width:360px; background:#14141d; border:1px solid #26263a; border-radius:14px; padding:22px; box-shadow:0 24px 70px rgba(0,0,0,.6);">
+  <div v-if="open" @click="$emit('close')" style="position:fixed; inset:0; background:rgba(3,3,8,.82); display:flex; align-items:center; justify-content:center; padding:24px; z-index:1000; overflow-y:auto;">
+    <div class="modal-panel" @click.stop role="dialog" aria-modal="true" aria-labelledby="login-modal-title" style="width:100%; max-width:360px; background:#14141d; border:1px solid #26263a; border-radius:14px; padding:22px; box-shadow:0 24px 70px rgba(0,0,0,.6); margin:auto;">
       <div style="font-size:10.5px; font-weight:800; letter-spacing:.08em; color:#b3aaff; margin-bottom:6px;">● SHYDEVS</div>
-      <div style="font-size:19px; font-weight:800; color:#f5f4fb; letter-spacing:-.02em;">Entrar</div>
+      <div id="login-modal-title" style="font-size:19px; font-weight:800; color:#f5f4fb; letter-spacing:-.02em;">Entrar</div>
       <div style="font-size:12.5px; color:#9a97b8; margin-top:4px; margin-bottom:18px;">Use seu nome da equipe e sua senha.</div>
 
       <form @submit.prevent="submit" style="display:flex; flex-direction:column; gap:12px;">
         <div>
-          <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Nome</div>
-          <input v-model="form.name" placeholder="Shy Moreira" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#f5f4fb; outline:none;" />
+          <label for="login-name" style="display:block; font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Nome</label>
+          <input id="login-name" ref="nameInputEl" v-model="form.name" placeholder="Shy Moreira" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#f5f4fb; outline:none;" />
         </div>
         <div>
-          <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Senha</div>
-          <input v-model="form.password" type="password" placeholder="••••••••" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#f5f4fb; outline:none;" />
+          <label for="login-password" style="display:block; font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Senha</label>
+          <input id="login-password" v-model="form.password" type="password" placeholder="••••••••" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#f5f4fb; outline:none;" />
         </div>
 
-        <div v-if="error" style="padding:9px 11px; background:rgba(224,79,95,.14); border:1px solid rgba(224,79,95,.35); border-radius:9px; color:#ff8f98; font-size:12px; font-weight:600;">
+        <div v-if="error" role="alert" style="padding:9px 11px; background:rgba(224,79,95,.14); border:1px solid rgba(224,79,95,.35); border-radius:9px; color:#ff8f98; font-size:12px; font-weight:600;">
           {{ error }}
         </div>
 
@@ -70,4 +74,5 @@ async function submit() {
     </div>
   </div>
   </Transition>
+  </Teleport>
 </template>

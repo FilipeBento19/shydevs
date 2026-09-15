@@ -69,24 +69,26 @@ function onDropCol(status) {
           :draggable="canEdit"
           @dragstart="onDragStart(t)"
           @click="openTask(t)"
+          role="button" tabindex="0" :aria-label="`Abrir tarefa ${t.code}: ${t.title}, status ${t.status}`"
+          @keydown.enter="openTask(t)" @keydown.space.prevent="openTask(t)"
           :style="{ background: '#0e0e14', border: '1px solid #22222f', borderRadius: '10px', padding: '10px', cursor: canEdit ? 'grab' : 'pointer' }">
           <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
-            <span style="font-family:'JetBrains Mono', monospace; font-size:10px; color:#6f6d87;">{{ t.code }}</span>
+            <span style="font-family:'JetBrains Mono', monospace; font-size:10px; color:#8f8da8;">{{ t.code }}</span>
             <span :style="{ marginLeft: 'auto', ...prioBadge(t.priority), padding: '2px 6px', fontSize: '10px' }">{{ t.priority }}</span>
           </div>
           <div style="font-size:12.5px; font-weight:700; color:#f5f4fb; margin-bottom:6px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">{{ t.title }}</div>
           <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
             <span :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px', borderRadius: '6px', padding: '3px 7px', fontSize: '10px', fontWeight: '700', background: `color-mix(in oklab, ${roleColor(t.role)} 20%, #14141d)`, color: `color-mix(in oklab, ${roleColor(t.role)} 75%, #fff)` }">
-              <i :class="`fi ${roleIcon(t.role)}`"></i>{{ t.role }}
+              <i :class="`fi ${roleIcon(t.role)}`" aria-hidden="true"></i>{{ t.role }}
             </span>
             <span :style="{ width: '20px', height: '20px', flex: 'none', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '8.5px', fontWeight: '800', color: '#0a0a10', background: roleColor(t.role) }" :title="t.assignee_name">{{ initials(t.assignee_name) }}</span>
           </div>
           <div :style="{ marginTop: '6px', fontSize: '10.5px', fontWeight: '600', color: isLate(t) ? '#ff8f98' : '#8b899f' }">
-            <i class="fi fi-sr-calendar" style="opacity:.7; margin-right:4px;"></i>{{ formatDue(t) }}
+            <i class="fi fi-sr-calendar" style="opacity:.7; margin-right:4px;" aria-hidden="true"></i>{{ formatDue(t) }}
           </div>
           <div v-if="t.subtasks_total || t.attachments_total" style="margin-top:6px; font-size:10.5px; color:#8b899f; display:flex; align-items:center; gap:10px;">
-            <span v-if="t.subtasks_total"><i class="fi fi-sr-check-circle" style="opacity:.6;"></i> {{ t.subtasks_done }}/{{ t.subtasks_total }}</span>
-            <span v-if="t.attachments_total"><i class="fi fi-sr-paperclip" style="opacity:.6;"></i> {{ t.attachments_total }}</span>
+            <span v-if="t.subtasks_total"><i class="fi fi-sr-check-circle" style="opacity:.6;" aria-hidden="true"></i> {{ t.subtasks_done }}/{{ t.subtasks_total }}</span>
+            <span v-if="t.attachments_total"><i class="fi fi-sr-paperclip" style="opacity:.6;" aria-hidden="true"></i> {{ t.attachments_total }}</span>
           </div>
         </div>
       </TransitionGroup>

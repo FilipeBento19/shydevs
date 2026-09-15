@@ -195,15 +195,15 @@ function setQuickDate(offsetDays) {
     <template v-else-if="task">
       <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:18px;">
         <div style="min-width:0;">
-          <div style="font-family:'JetBrains Mono', monospace; font-size:12px; color:#6f6d87;">{{ task.code }}</div>
+          <div style="font-family:'JetBrains Mono', monospace; font-size:12px; color:#8f8da8;">{{ task.code }}</div>
           <div style="font-size:22px; font-weight:800; color:#f5f4fb; letter-spacing:-.02em; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             {{ task.title }}
-            <span v-if="!canEdit" style="font-size:10px; font-weight:700; letter-spacing:.04em; color:#8b899f; background:#1c1c28; border:1px solid #26263a; border-radius:999px; padding:3px 8px;"><i class="fi fi-sr-eye" style="margin-right:4px;"></i>Somente leitura</span>
+            <span v-if="!canEdit" style="font-size:10px; font-weight:700; letter-spacing:.04em; color:#8b899f; background:#1c1c28; border:1px solid #26263a; border-radius:999px; padding:3px 8px;"><i class="fi fi-sr-eye" style="margin-right:4px;" aria-hidden="true"></i>Somente leitura</span>
           </div>
         </div>
         <div v-if="canEdit" style="display:flex; gap:8px; flex:none;">
           <button @click="remove" :disabled="deleting" :style="{ border: '1px solid rgba(224,79,95,.4)', background: confirmDelete ? 'rgba(224,79,95,.18)' : 'transparent', borderRadius: '9px', padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', color: '#ff8f98', cursor: 'pointer' }">
-            <i class="fi fi-sr-trash-can-list"></i> {{ confirmDelete ? 'Confirmar exclusão?' : 'Excluir' }}
+            <i class="fi fi-sr-trash-can-list" aria-hidden="true"></i> {{ confirmDelete ? 'Confirmar exclusão?' : 'Excluir' }}
           </button>
           <button @click="save" :disabled="saving" style="border:none; background:#7c6fff; color:#0a0a10; border-radius:9px; padding:9px 16px; font-size:12.5px; font-weight:700; cursor:pointer;">
             {{ saving ? 'Salvando…' : savedFlash ? '✓ Salvo' : 'Salvar alterações' }}
@@ -221,38 +221,38 @@ function setQuickDate(offsetDays) {
           <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">
             <div style="display:flex; flex-direction:column; gap:12px;">
               <div>
-                <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Título</div>
-                <input v-model="form.title" :disabled="!canEdit" :style="{ width: '100%', boxSizing: 'border-box', border: '1px solid #26263a', background: canEdit ? '#0e0e14' : '#131319', borderRadius: '9px', padding: '10px 12px', fontSize: '13px', color: canEdit ? '#f5f4fb' : '#9a97b8', outline: 'none' }" />
+                <label for="task-title" style="display:block; font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Título</label>
+                <input id="task-title" v-model="form.title" :disabled="!canEdit" :style="{ width: '100%', boxSizing: 'border-box', border: '1px solid #26263a', background: canEdit ? '#0e0e14' : '#131319', borderRadius: '9px', padding: '10px 12px', fontSize: '13px', color: canEdit ? '#f5f4fb' : '#9a97b8', outline: 'none' }" />
               </div>
               <div>
-                <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Descrição — o que precisa ser feito</div>
-                <textarea v-model="form.description" :disabled="!canEdit" rows="3" :style="{ width: '100%', boxSizing: 'border-box', border: '1px solid #26263a', background: canEdit ? '#0e0e14' : '#131319', borderRadius: '9px', padding: '10px 12px', fontSize: '12.5px', color: canEdit ? '#f5f4fb' : '#9a97b8', outline: 'none', resize: 'vertical' }"></textarea>
+                <label for="task-desc" style="display:block; font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Descrição — o que precisa ser feito</label>
+                <textarea id="task-desc" v-model="form.description" :disabled="!canEdit" rows="3" :style="{ width: '100%', boxSizing: 'border-box', border: '1px solid #26263a', background: canEdit ? '#0e0e14' : '#131319', borderRadius: '9px', padding: '10px 12px', fontSize: '12.5px', color: canEdit ? '#f5f4fb' : '#9a97b8', outline: 'none', resize: 'vertical' }"></textarea>
               </div>
 
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                 <div>
                   <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Cargo</div>
-                  <CustomSelect v-model="form.role" :options="roleOptions" :disabled="!canEdit" width="100%" />
+                  <CustomSelect v-model="form.role" :options="roleOptions" :disabled="!canEdit" width="100%" label="Cargo" />
                 </div>
                 <div>
                   <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Responsável</div>
-                  <CustomSelect v-model="form.assignee" :options="assigneeOptions" :disabled="!canEdit" width="100%" />
+                  <CustomSelect v-model="form.assignee" :options="assigneeOptions" :disabled="!canEdit" width="100%" label="Responsável" />
                 </div>
                 <div>
                   <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between;">
                     Prazo
                     <button v-if="canEdit" type="button" @click="form.due_date = ''" style="border:none; background:transparent; color:#7c6fff; font-size:10.5px; font-weight:700; cursor:pointer; padding:0;">Sem prazo</button>
                   </div>
-                  <input type="date" v-model="form.due_date" :disabled="!canEdit" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:9px 11px; font-size:12.5px; color:#c7c5dc; outline:none;" />
+                  <input type="date" aria-label="Prazo" v-model="form.due_date" :disabled="!canEdit" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:9px 11px; font-size:12.5px; color:#c7c5dc; outline:none;" />
                   <div v-if="canEdit" style="display:flex; gap:5px; margin-top:6px; flex-wrap:wrap;">
-                    <span @click="setQuickDate(0)" style="font-size:10.5px; color:#8b899f; cursor:pointer; border:1px solid #26263a; border-radius:6px; padding:3px 7px;">Hoje</span>
-                    <span @click="setQuickDate(1)" style="font-size:10.5px; color:#8b899f; cursor:pointer; border:1px solid #26263a; border-radius:6px; padding:3px 7px;">Amanhã</span>
-                    <span @click="setQuickDate(7)" style="font-size:10.5px; color:#8b899f; cursor:pointer; border:1px solid #26263a; border-radius:6px; padding:3px 7px;">+7 dias</span>
+                    <button type="button" @click="setQuickDate(0)" style="font-size:10.5px; color:#8b899f; cursor:pointer; border:1px solid #26263a; background:transparent; border-radius:6px; padding:3px 7px;">Hoje</button>
+                    <button type="button" @click="setQuickDate(1)" style="font-size:10.5px; color:#8b899f; cursor:pointer; border:1px solid #26263a; background:transparent; border-radius:6px; padding:3px 7px;">Amanhã</button>
+                    <button type="button" @click="setQuickDate(7)" style="font-size:10.5px; color:#8b899f; cursor:pointer; border:1px solid #26263a; background:transparent; border-radius:6px; padding:3px 7px;">+7 dias</button>
                   </div>
                 </div>
                 <div>
                   <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Prioridade</div>
-                  <CustomSelect v-model="form.priority" :options="priorityOptions" :disabled="!canEdit" width="100%" />
+                  <CustomSelect v-model="form.priority" :options="priorityOptions" :disabled="!canEdit" width="100%" label="Prioridade" />
                 </div>
               </div>
 
@@ -276,14 +276,14 @@ function setQuickDate(offsetDays) {
             <TransitionGroup tag="div" @enter="listEnter" @leave="listLeave" :css="false" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
               <div v-for="(st, i) in subtasks" :key="st.id" :data-index="i" style="display:flex; align-items:center; gap:8px; background:#0e0e14; border:1px solid #22222f; border-radius:8px; padding:8px 10px;">
                 <input type="checkbox" :checked="st.done" :disabled="!canEdit" @change="toggleSubtask(st)" style="width:14px; height:14px; accent-color:#7c6fff; cursor:pointer;" />
-                <span :style="{ flex: 1, fontSize: '12.5px', color: st.done ? '#6f6d87' : '#e4e2f1', textDecoration: st.done ? 'line-through' : 'none' }">{{ st.title }}</span>
-                <button v-if="canEdit" type="button" @click="removeSubtask(st)" style="border:none; background:transparent; color:#6f6d87; cursor:pointer; font-size:12px;"><i class="fi fi-sr-cross-small"></i></button>
+                <span :style="{ flex: 1, fontSize: '12.5px', color: st.done ? '#8f8da8' : '#e4e2f1', textDecoration: st.done ? 'line-through' : 'none' }">{{ st.title }}</span>
+                <button v-if="canEdit" type="button" @click="removeSubtask(st)" :aria-label="`Remover etapa: ${st.title}`" style="border:none; background:transparent; color:#8f8da8; cursor:pointer; font-size:12px;"><i class="fi fi-sr-cross-small" aria-hidden="true"></i></button>
               </div>
             </TransitionGroup>
-            <div v-if="!subtasks.length" style="font-size:12px; color:#6f6d87; margin-bottom:8px;">Nenhuma etapa cadastrada ainda.</div>
+            <div v-if="!subtasks.length" style="font-size:12px; color:#8f8da8; margin-bottom:8px;">Nenhuma etapa cadastrada ainda.</div>
             <div v-if="canEdit" style="display:flex; gap:6px;">
               <input v-model="newSubtaskTitle" @keyup.enter="addSubtask" placeholder="Adicionar etapa…" style="flex:1; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:8px 10px; font-size:12px; color:#f5f4fb; outline:none;" />
-              <button type="button" @click="addSubtask" style="border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:8px 12px; font-size:12px; font-weight:700; color:#c7c5dc; cursor:pointer;"><i class="fi fi-sr-plus-small"></i></button>
+              <button type="button" @click="addSubtask" style="border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:8px 12px; font-size:12px; font-weight:700; color:#c7c5dc; cursor:pointer;"><i class="fi fi-sr-plus-small" aria-hidden="true"></i></button>
             </div>
           </div>
         </div>
@@ -294,7 +294,7 @@ function setQuickDate(offsetDays) {
             <span :style="{ width: '36px', height: '36px', flex: 'none', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '800', color: '#0a0a10', background: roleColor(task.role) }">{{ initials(task.assignee_name) }}</span>
             <div style="min-width:0;">
               <div style="font-size:12.5px; font-weight:700; color:#f5f4fb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ task.assignee_name || 'Sem responsável' }}</div>
-              <div style="font-size:11px; color:#8b899f; display:flex; align-items:center; gap:4px;"><i :class="`fi ${roleIcon(task.role)}`"></i>{{ task.role }}</div>
+              <div style="font-size:11px; color:#8b899f; display:flex; align-items:center; gap:4px;"><i :class="`fi ${roleIcon(task.role)}`" aria-hidden="true"></i>{{ task.role }}</div>
             </div>
           </div>
 
@@ -306,7 +306,7 @@ function setQuickDate(offsetDays) {
             <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:8px;">Histórico</div>
             <TransitionGroup tag="div" @enter="listEnter" :css="false" style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto;">
               <div v-for="(a, i) in activities" :key="a.id" :data-index="i" style="font-size:11.5px; color:#9a97b8; display:flex; gap:8px;">
-                <i class="fi fi-sr-clock" style="opacity:.6; margin-top:2px;"></i>
+                <i class="fi fi-sr-clock" style="opacity:.6; margin-top:2px;" aria-hidden="true"></i>
                 <span>{{ a.message }} <span style="color:#5f5d78;">· {{ fmtDate(a.created_at) }}</span></span>
               </div>
             </TransitionGroup>

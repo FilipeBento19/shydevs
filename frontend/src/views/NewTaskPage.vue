@@ -101,12 +101,12 @@ async function submit() {
       <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:18px;">
         <div style="display:flex; flex-direction:column; gap:14px;">
           <div>
-            <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Título da tarefa <span style="color:#ff8f98;">*</span></div>
-            <input v-model="form.title" placeholder="Modelar conjunto de props do lobby v2" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#f5f4fb; outline:none;" />
+            <label for="new-task-title" style="display:block; font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Título da tarefa <span style="color:#ff8f98;">*</span></label>
+            <input id="new-task-title" v-model="form.title" placeholder="Modelar conjunto de props do lobby v2" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#f5f4fb; outline:none;" />
           </div>
           <div>
-            <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Descrição curta</div>
-            <textarea v-model="form.description" rows="2" placeholder="Definir escopo, referências e limite de polycount" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#f5f4fb; outline:none; resize:vertical;"></textarea>
+            <label for="new-task-desc" style="display:block; font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Descrição curta</label>
+            <textarea id="new-task-desc" v-model="form.description" rows="2" placeholder="Definir escopo, referências e limite de polycount" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 12px; font-size:12.5px; color:#f5f4fb; outline:none; resize:vertical;"></textarea>
           </div>
           <div>
             <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Cargo <span style="color:#ff8f98;">*</span></div>
@@ -133,7 +133,7 @@ async function submit() {
         <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:22px;">
           <button @click="goBack" style="border:1px solid #26263a; background:#0e0e14; border-radius:9px; padding:10px 16px; font-size:12.5px; font-weight:700; color:#c7c5dc; cursor:pointer;">Cancelar</button>
           <button @click="submit" :disabled="submitting" style="border:none; background:#7c6fff; color:#0a0a10; border-radius:9px; padding:10px 18px; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;">
-            <i class="fi fi-sr-plus-small"></i>{{ submitting ? 'Atribuindo…' : 'Atribuir Tarefa' }}
+            <i class="fi fi-sr-plus-small" aria-hidden="true"></i>{{ submitting ? 'Atribuindo…' : 'Atribuir Tarefa' }}
           </button>
         </div>
       </div>

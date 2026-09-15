@@ -202,7 +202,7 @@ async function onKanbanStatusChange(task, status) {
 
 <template>
   <div v-if="error" style="margin:20px 26px 0; padding:12px 14px; background:rgba(224,79,95,.12); border:1px solid rgba(224,79,95,.35); border-radius:10px; color:#ff8f98; font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:8px;">
-    <i class="fi fi-sr-cross-circle"></i>{{ error }}
+    <i class="fi fi-sr-cross-circle" aria-hidden="true"></i>{{ error }}
   </div>
 
   <template v-else>
@@ -220,11 +220,12 @@ async function onKanbanStatusChange(task, status) {
     <div ref="filterBarEl" style="padding:16px 26px 0;">
       <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
         <div style="flex:1; min-width:210px; display:flex; align-items:center; gap:8px; background:#0e0e14; border:1px solid #22222f; border-radius:9px; padding:9px 12px;">
-          <i class="fi fi-sr-search" style="color:#6f6d87; font-size:12px;"></i>
-          <input ref="searchInputRef" v-model="filters.query" @keydown="onKeydown" placeholder="Buscar tarefa (atalho: /)…" style="border:none; background:transparent; outline:none; font-size:12.5px; color:#f5f4fb; width:100%;" />
+          <i class="fi fi-sr-search" aria-hidden="true" style="color:#8f8da8; font-size:12px;"></i>
+          <label for="board-search" class="sr-only">Buscar tarefa por título, cargo, descrição ou responsável</label>
+          <input id="board-search" ref="searchInputRef" v-model="filters.query" @keydown="onKeydown" placeholder="Buscar tarefa (atalho: /)…" style="border:none; background:transparent; outline:none; font-size:12.5px; color:#f5f4fb; width:100%;" />
         </div>
-        <CustomSelect v-model="filters.person" :options="personFilterOptions" />
-        <CustomSelect v-model="filters.prio" :options="prioFilterOptions" />
+        <CustomSelect v-model="filters.person" :options="personFilterOptions" label="Filtrar por responsável" />
+        <CustomSelect v-model="filters.prio" :options="prioFilterOptions" label="Filtrar por prioridade" />
         <SlidingTabs
           :items="[{ key: 'tabela', label: 'Tabela', icon: 'fi-sr-table-list' }, { key: 'cards', label: 'Cards', icon: 'fi-sr-chart-kanban' }]"
           v-model="boardMode"
@@ -276,13 +277,13 @@ async function onKanbanStatusChange(task, status) {
 
     <div v-if="balance" ref="balanceCardEl" style="padding:18px 26px 26px;">
       <div style="background:rgba(124,111,255,.10); border:1px solid rgba(124,111,255,.3); border-radius:12px; padding:14px 16px; display:flex; gap:13px; align-items:center; flex-wrap:wrap;">
-        <div style="width:30px; height:30px; border-radius:9px; background:#14141d; border:1px solid rgba(124,111,255,.3); display:flex; align-items:center; justify-content:center; color:#b3aaff; font-size:14px;"><i class="fi fi-sr-scale-comparison"></i></div>
+        <div style="width:30px; height:30px; border-radius:9px; background:#14141d; border:1px solid rgba(124,111,255,.3); display:flex; align-items:center; justify-content:center; color:#b3aaff; font-size:14px;"><i class="fi fi-sr-scale-comparison" aria-hidden="true"></i></div>
         <div style="flex:1; min-width:240px;">
           <div style="font-size:12.5px; font-weight:800; color:#cfc9ff;">Equilíbrio Dinâmico — {{ balance.role }}</div>
           <div style="font-size:12px; color:#b0abd6; margin-top:3px; line-height:1.5;">{{ balance.text }}</div>
         </div>
       </div>
-      <div style="font-size:11px; color:#6f6d87; margin-top:8px;">A comparação acontece apenas entre pessoas do mesmo cargo.</div>
+      <div style="font-size:11px; color:#8f8da8; margin-top:8px;">A comparação acontece apenas entre pessoas do mesmo cargo.</div>
     </div>
   </template>
 </template>
