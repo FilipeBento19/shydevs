@@ -90,6 +90,11 @@ class PersonViewSet(viewsets.ModelViewSet):
     serializer_class = PersonSerializer
     permission_classes = [IsAdminOrReadOnly]
 
+    def get_permissions(self):
+        if self.action == 'photo':
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
     def _would_remove_last_admin(self, instance, validated_data):
         becoming_non_admin = 'is_admin' in validated_data and not validated_data['is_admin']
         return (
@@ -118,12 +123,16 @@ class PersonViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def photo(self, request, pk=None):
         person = self.get_object()
+        user = request.user
+        is_self = getattr(user, 'id', None) == person.id
+        if not (getattr(user, 'is_admin', False) or is_self):
+            return Response({'detail': 'Você só pode alterar a sua própria foto.'}, status=http_status.HTTP_403_FORBIDDEN)
         file = request.FILES.get('photo')
         if not file:
             return Response({'detail': 'Nenhum arquivo enviado.'}, status=400)
         person.photo = file
         person.save()
-        return Response(PersonSerializer(person).data)
+        return Response(PersonSerializer(person, context={'request': request}).data)
 
 
 OWNER_EDITABLE_FIELDS = {'status', 'completion_note'}

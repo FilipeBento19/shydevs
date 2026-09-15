@@ -6,10 +6,11 @@ import { auth } from '../auth'
 import { playDing } from '../sound'
 import { bumpTasks } from '../taskBus'
 import { listEnter, listLeave } from '../motion'
-import { roleIcon, initials } from '../utils'
+import { roleIcon } from '../utils'
 import CustomSelect from '../components/CustomSelect.vue'
 import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import BackButton from '../components/BackButton.vue'
+import AssigneeAvatar from '../components/AssigneeAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -314,7 +315,7 @@ function setQuickDate(offsetDays) {
         <!-- right column: assignee card, attachments, history -->
         <div style="display:flex; flex-direction:column; gap:16px;">
           <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px; display:flex; align-items:center; gap:10px;">
-            <span :style="{ width: '36px', height: '36px', flex: 'none', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '800', color: '#0a0a10', background: roleColor(task.role) }">{{ initials(task.assignee_name) }}</span>
+            <AssigneeAvatar :photo="task.assignee_photo" :color="roleColor(task.role)" :size="36" />
             <div style="min-width:0;">
               <div style="font-size:12.5px; font-weight:700; color:#f5f4fb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ task.assignee_name || 'Sem responsável' }}</div>
               <div style="font-size:11px; color:#8b899f; display:flex; align-items:center; gap:4px;"><i :class="`fi ${roleIcon(task.role)}`" aria-hidden="true"></i>{{ task.role }}</div>

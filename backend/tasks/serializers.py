@@ -57,6 +57,7 @@ class AttachmentSerializer(serializers.ModelSerializer):
 
 class TaskSerializer(serializers.ModelSerializer):
     assignee_name = serializers.CharField(source='assignee.name', read_only=True, default=None)
+    assignee_photo = serializers.SerializerMethodField()
     role_color = serializers.SerializerMethodField()
     subtasks = SubtaskSerializer(many=True, read_only=True)
     subtasks_done = serializers.SerializerMethodField()
@@ -67,7 +68,7 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             'id', 'code', 'title', 'description', 'role', 'role_color',
-            'assignee', 'assignee_name', 'due_date', 'priority', 'status',
+            'assignee', 'assignee_name', 'assignee_photo', 'due_date', 'priority', 'status',
             'checked', 'completion_note', 'created_at', 'subtasks', 'subtasks_done',
             'subtasks_total', 'attachments_total',
         ]
@@ -90,6 +91,14 @@ class TaskSerializer(serializers.ModelSerializer):
             setattr(instance, k, v)
         instance.save()
         return instance
+
+    def get_assignee_photo(self, obj):
+        person = obj.assignee
+        if not person or not person.photo:
+            return None
+        request = self.context.get('request')
+        url = person.photo.url
+        return request.build_absolute_uri(url) if request else url
 
     def get_role_color(self, obj):
         return ROLE_COLORS.get(obj.role, ROLE_COLORS[Role.MODELADOR])

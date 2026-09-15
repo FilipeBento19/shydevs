@@ -1,8 +1,9 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { listEnter, listLeave } from '../motion'
-import { initials, isLate, formatDue, prioBadge, statusBadge, roleIcon } from '../utils'
+import { isLate, formatDue, prioBadge, statusBadge, roleIcon } from '../utils'
 import mascot from '../assets/mascot.png'
+import AssigneeAvatar from './AssigneeAvatar.vue'
 
 const props = defineProps({
   tasks: { type: Array, default: () => [] },
@@ -69,7 +70,7 @@ function openTask(task) {
               </span>
             </div>
             <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-              <span :style="{ width: '24px', height: '24px', flex: 'none', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '9.5px', fontWeight: '800', color: '#0a0a10', background: roleColor(t.role) }">{{ initials(t.assignee_name) }}</span>
+              <AssigneeAvatar :photo="t.assignee_photo" :color="roleColor(t.role)" :size="24" />
               <span style="font-size:12px; font-weight:600; color:#d6d4e6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.assignee_name || 'Sem responsável' }}</span>
             </div>
             <div :style="{ fontSize: '11.5px', fontWeight: '600', color: isLate(t) ? '#ff8f98' : '#9a97b8', display: 'flex', alignItems: 'center', gap: '6px' }">

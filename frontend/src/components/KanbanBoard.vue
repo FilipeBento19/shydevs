@@ -1,8 +1,9 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { initials, isLate, formatDue, prioBadge, roleIcon } from '../utils'
+import { isLate, formatDue, prioBadge, roleIcon } from '../utils'
 import { cardEnter, cardLeave } from '../motion'
+import AssigneeAvatar from './AssigneeAvatar.vue'
 
 const props = defineProps({
   tasks: { type: Array, default: () => [] },
@@ -81,7 +82,7 @@ function onDropCol(status) {
             <span :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px', borderRadius: '6px', padding: '3px 7px', fontSize: '10px', fontWeight: '700', background: `color-mix(in oklab, ${roleColor(t.role)} 20%, #14141d)`, color: `color-mix(in oklab, ${roleColor(t.role)} 75%, #fff)` }">
               <i :class="`fi ${roleIcon(t.role)}`" aria-hidden="true"></i>{{ t.role }}
             </span>
-            <span :style="{ width: '20px', height: '20px', flex: 'none', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '8.5px', fontWeight: '800', color: '#0a0a10', background: roleColor(t.role) }" :title="t.assignee_name">{{ initials(t.assignee_name) }}</span>
+            <AssigneeAvatar :photo="t.assignee_photo" :color="roleColor(t.role)" :size="20" :title="t.assignee_name" />
           </div>
           <div :style="{ marginTop: '6px', fontSize: '10.5px', fontWeight: '600', color: isLate(t) ? '#ff8f98' : '#8b899f' }">
             <i class="fi fi-sr-calendar" style="opacity:.7; margin-right:4px;" aria-hidden="true"></i>{{ formatDue(t) }}
