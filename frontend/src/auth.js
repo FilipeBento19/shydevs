@@ -18,8 +18,8 @@ export const auth = {
   get isLoggedIn() {
     return !!state.token
   },
-  async login(name, password) {
-    const res = await api.login(name, password)
+  async login(name, password, projectId) {
+    const res = await api.login(name, password, projectId)
     state.token = res.token
     state.person = res.person
     persist()

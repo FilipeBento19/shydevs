@@ -1,6 +1,7 @@
 <script setup>
 import { nextTick, reactive, ref, watch } from 'vue'
 import { auth } from '../auth'
+import { project } from '../project'
 import { modalEnter, modalLeave } from '../motion'
 
 const props = defineProps({ open: Boolean })
@@ -30,9 +31,13 @@ async function submit() {
     error.value = 'Preencha nome e senha.'
     return
   }
+  if (!project.state.current) {
+    error.value = 'Escolha um projeto antes de entrar.'
+    return
+  }
   loading.value = true
   try {
-    const person = await auth.login(form.name.trim(), form.password)
+    const person = await auth.login(form.name.trim(), form.password, project.state.current.id)
     emit('logged-in', person)
     emit('close')
   } catch (e) {
@@ -50,7 +55,9 @@ async function submit() {
     <div class="modal-panel" @click.stop role="dialog" aria-modal="true" aria-labelledby="login-modal-title" style="width:100%; max-width:360px; background:#14141d; border:1px solid #26263a; border-radius:14px; padding:22px; box-shadow:0 24px 70px rgba(0,0,0,.6); margin:auto;">
       <div style="font-size:10.5px; font-weight:800; letter-spacing:.08em; color:#b3aaff; margin-bottom:6px;">● SHYDEVS</div>
       <div id="login-modal-title" style="font-size:19px; font-weight:800; color:#f5f4fb; letter-spacing:-.02em;">Entrar</div>
-      <div style="font-size:12.5px; color:#9a97b8; margin-top:4px; margin-bottom:18px;">Use seu nome da equipe e sua senha.</div>
+      <div style="font-size:12.5px; color:#9a97b8; margin-top:4px; margin-bottom:18px;">
+        Entrando em <strong style="color:#c7c5dc;">{{ project.state.current?.name || 'nenhum projeto selecionado' }}</strong>.
+      </div>
 
       <form @submit.prevent="submit" style="display:flex; flex-direction:column; gap:12px;">
         <div>

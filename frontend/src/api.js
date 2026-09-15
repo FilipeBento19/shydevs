@@ -8,6 +8,17 @@ function authHeaders() {
   return token ? { Authorization: `Token ${token}` } : {}
 }
 
+// Read directly from storage (not the project store module) to avoid a
+// circular import — the project store itself calls into this file.
+function currentProjectId() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('shydevs_project') || 'null')
+    return raw?.id ?? null
+  } catch (e) {
+    return null
+  }
+}
+
 async function request(path, options = {}) {
   const isForm = options.body instanceof FormData
   const res = await fetch(`${BASE}${path}`, {
@@ -54,22 +65,27 @@ function qs(params = {}) {
 }
 
 export const api = {
+  // projects
+  getProjects: () => request('/projects/'),
+  createProject: (data) => request('/projects/', { method: 'POST', body: JSON.stringify(data) }),
+  updateProject: (id, data) => request(`/projects/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
+
   // auth
-  login: (name, password) =>
-    request('/auth/login/', { method: 'POST', body: JSON.stringify({ name, password }) }),
+  login: (name, password, projectId) =>
+    request('/auth/login/', { method: 'POST', body: JSON.stringify({ name, password, project: projectId }) }),
   logout: () => request('/auth/logout/', { method: 'POST' }),
   me: () => request('/auth/me/'),
 
   // roles / balance / dashboard
-  getRoles: () => request('/roles/'),
+  getRoles: () => request(`/roles/${qs({ project: currentProjectId() })}`),
   createRole: (data) => request('/roles/', { method: 'POST', body: JSON.stringify(data) }),
   updateRole: (id, data) => request(`/roles/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteRole: (id) => request(`/roles/${id}/`, { method: 'DELETE' }),
-  getBalance: () => request('/tasks/balance/'),
+  getBalance: () => request(`/tasks/balance/${qs({ project: currentProjectId() })}`),
   getDashboard: () => request('/tasks/dashboard/'),
 
   // people
-  getPeople: () => request('/people/'),
+  getPeople: () => request(`/people/${qs({ project: currentProjectId() })}`),
   createPerson: (data) => request('/people/', { method: 'POST', body: JSON.stringify(data) }),
   updatePerson: (id, data) => request(`/people/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
   deletePerson: (id) => request(`/people/${id}/`, { method: 'DELETE' }),
@@ -82,7 +98,7 @@ export const api = {
     request(`/people/${id}/change-password/`, { method: 'POST', body: JSON.stringify({ password }) }),
 
   // tasks
-  getTasks: (params = {}) => request(`/tasks/${qs(params)}`),
+  getTasks: (params = {}) => request(`/tasks/${qs({ project: currentProjectId(), ...params })}`),
   getTask: (id) => request(`/tasks/${id}/`),
   createTask: (data) => request('/tasks/', { method: 'POST', body: JSON.stringify(data) }),
   updateTask: (id, data) =>
@@ -121,8 +137,4 @@ export const api = {
     return request('/attachments/', { method: 'POST', body: JSON.stringify(data) })
   },
   deleteAttachment: (id) => request(`/attachments/${id}/`, { method: 'DELETE' }),
-
-  // project settings
-  getSettings: () => request('/settings/'),
-  updateSettings: (data) => request('/settings/', { method: 'PATCH', body: JSON.stringify(data) }),
 }

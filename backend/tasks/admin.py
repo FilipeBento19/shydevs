@@ -1,22 +1,33 @@
 from django.contrib import admin
 
-from .models import Activity, Attachment, AuthToken, Comment, Person, ProjectSettings, Subtask, Task
+from .models import Activity, Attachment, AuthToken, Comment, Person, Project, Role, Subtask, Task
+
+
+@admin.register(Project)
+class ProjectAdmin(admin.ModelAdmin):
+    list_display = ['name', 'created_at']
 
 
 @admin.register(Person)
 class PersonAdmin(admin.ModelAdmin):
-    list_display = ['name', 'role_list', 'is_admin']
-    list_filter = ['roles', 'is_admin']
+    list_display = ['name', 'project', 'role_list', 'is_admin']
+    list_filter = ['project', 'roles', 'is_admin']
 
     def role_list(self, obj):
         return ', '.join(obj.roles.values_list('name', flat=True))
     role_list.short_description = 'Cargos'
 
 
+@admin.register(Role)
+class RoleAdmin(admin.ModelAdmin):
+    list_display = ['name', 'project', 'color', 'order']
+    list_filter = ['project']
+
+
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ['code', 'title', 'role', 'assignee', 'priority', 'status', 'due_date']
-    list_filter = ['role', 'priority', 'status']
+    list_display = ['code', 'title', 'project', 'role', 'assignee', 'priority', 'status', 'due_date']
+    list_filter = ['project', 'role', 'priority', 'status']
     search_fields = ['code', 'title', 'description']
 
 
@@ -50,6 +61,3 @@ class CommentAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at']
 
 
-@admin.register(ProjectSettings)
-class ProjectSettingsAdmin(admin.ModelAdmin):
-    list_display = ['name']

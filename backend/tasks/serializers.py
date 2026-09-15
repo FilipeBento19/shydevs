@@ -1,7 +1,14 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 
-from .models import Activity, Attachment, Comment, Person, Role, Subtask, Task
+from .models import Activity, Attachment, Comment, Person, Project, Role, Subtask, Task
+
+
+class ProjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Project
+        fields = ['id', 'name', 'created_at']
+        read_only_fields = ['created_at']
 
 
 class PersonSerializer(serializers.ModelSerializer):
@@ -12,10 +19,11 @@ class PersonSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Person
-        fields = ['id', 'name', 'roles', 'photo', 'password', 'is_admin']
+        fields = ['id', 'project', 'name', 'roles', 'photo', 'password', 'is_admin']
+        read_only_fields = ['project']
 
-    def _resolve_roles(self, names):
-        qs = Role.objects.filter(name__in=names)
+    def _resolve_roles(self, names, project):
+        qs = Role.objects.filter(project=project, name__in=names)
         missing = set(names) - {r.name for r in qs}
         if missing:
             raise serializers.ValidationError({'roles': f'Cargo(s) inexistente(s): {", ".join(sorted(missing))}'})
@@ -34,7 +42,7 @@ class PersonSerializer(serializers.ModelSerializer):
             person.set_password(raw_password)
         person.save()
         if role_names:
-            person.roles.set(self._resolve_roles(role_names))
+            person.roles.set(self._resolve_roles(role_names, person.project))
         return person
 
     def update(self, instance, validated_data):
@@ -46,14 +54,15 @@ class PersonSerializer(serializers.ModelSerializer):
             instance.set_password(raw_password)
         instance.save()
         if role_names is not None:
-            instance.roles.set(self._resolve_roles(role_names))
+            instance.roles.set(self._resolve_roles(role_names, instance.project))
         return instance
 
 
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
-        fields = ['id', 'name', 'color', 'order']
+        fields = ['id', 'project', 'name', 'color', 'order']
+        read_only_fields = ['project']
 
     def update(self, instance, validated_data):
         old_name = instance.name
@@ -64,8 +73,9 @@ class RoleSerializer(serializers.ModelSerializer):
         if new_name != old_name:
             # Person.roles is a real relation, so renaming here already
             # reflects there automatically. Task.role is still a plain
-            # string field, so it needs an explicit cascade.
-            Task.objects.filter(role=old_name).update(role=new_name)
+            # string field, so it needs an explicit cascade — scoped to
+            # this role's own project so it can't touch another one's tasks.
+            Task.objects.filter(project=instance.project, role=old_name).update(role=new_name)
         return instance
 
 
@@ -144,12 +154,12 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = [
-            'id', 'code', 'title', 'description', 'role', 'role_color',
+            'id', 'project', 'code', 'title', 'description', 'role', 'role_color',
             'assignee', 'assignee_name', 'assignee_photo', 'due_date', 'priority', 'status',
             'checked', 'completion_note', 'created_at', 'subtasks', 'subtasks_done',
             'subtasks_total', 'attachments_total',
         ]
-        read_only_fields = ['code', 'created_at']
+        read_only_fields = ['project', 'code', 'created_at']
 
     def _actor(self):
         request = self.context.get('request')
@@ -180,7 +190,7 @@ class TaskSerializer(serializers.ModelSerializer):
     def get_role_color(self, obj):
         role_colors = self.context.get('role_colors')
         if role_colors is None:
-            role = Role.objects.filter(name=obj.role).first()
+            role = Role.objects.filter(project=obj.project, name=obj.role).first()
             return role.color if role else '#9a9ab0'
         return role_colors.get(obj.role, '#9a9ab0')
 

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { gsap, reduceMotion, toastEnter, toastLeave } from './motion'
 import { mascot } from './mascotFace'
 import { auth } from './auth'
+import { project } from './project'
 import AppHeader from './components/AppHeader.vue'
 
 const route = useRoute()
@@ -108,7 +109,7 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
         </div>
       </div>
 
-      <router-view />
+      <router-view v-if="project.state.loaded" />
     </div>
 
   </div>

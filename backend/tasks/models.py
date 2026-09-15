@@ -4,16 +4,32 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
 
 
+class Project(models.Model):
+    """A workspace: its own tasks, people and roles. Selected via the
+    dropdown in the header; nothing below is shared across projects."""
+
+    name = models.CharField(max_length=120, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class Role(models.Model):
     """A job role/department. Admin-managed so the team can add or rename
     roles over time instead of being stuck with a fixed hardcoded list."""
 
-    name = models.CharField(max_length=40, unique=True)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='roles')
+    name = models.CharField(max_length=40)
     color = models.CharField(max_length=60, default='oklch(0.62 0.15 200)')
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ['order', 'id']
+        unique_together = [('project', 'name')]
 
     def __str__(self):
         return self.name
@@ -32,6 +48,7 @@ class Status(models.TextChoices):
 
 
 class Person(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='people')
     name = models.CharField(max_length=120)
     roles = models.ManyToManyField(Role, related_name='people', blank=True)
     password = models.CharField(max_length=128, blank=True)
@@ -67,7 +84,8 @@ class AuthToken(models.Model):
 
 
 class Task(models.Model):
-    code = models.CharField(max_length=20, unique=True, blank=True)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='tasks')
+    code = models.CharField(max_length=20, blank=True)
     title = models.CharField(max_length=200)
     description = models.CharField(max_length=500, blank=True)
     role = models.CharField(max_length=40)
@@ -83,10 +101,11 @@ class Task(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        unique_together = [('project', 'code')]
 
     def save(self, *args, **kwargs):
         if not self.code:
-            last = Task.objects.order_by('-id').first()
+            last = Task.objects.filter(project=self.project).order_by('-id').first()
             next_id = (last.id if last else 0) + 1
             self.code = f'SD-{100 + next_id}'
         super().save(*args, **kwargs)
@@ -181,13 +200,3 @@ class Attachment(models.Model):
         return self.caption or self.url or (self.file.name if self.file else f'Anexo #{self.pk}')
 
 
-class ProjectSettings(models.Model):
-    name = models.CharField(max_length=120, default='Slayer Reborn')
-
-    @classmethod
-    def load(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
-        return obj
-
-    def __str__(self):
-        return self.name

@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { auth } from '../auth'
+import { project } from '../project'
 import { gsap, popEnter, popLeave, reduceMotion } from '../motion'
 import { mascotFaceStyle, personAvatarStyle, mascot } from '../mascotFace'
 import { bumpTasks } from '../taskBus'
@@ -34,42 +35,81 @@ function goNav(key) {
   router.push({ name: key })
 }
 
-// ---- project name ----
-const projectName = ref('Slayer Reborn')
+// ---- project switcher ----
+const projectMenuOpen = ref(false)
+const projectName = computed(() => project.state.current?.name || 'Escolher projeto')
 const editingName = ref(false)
 const nameDraft = ref('')
 const savingName = ref(false)
+const creatingProject = ref(false)
+const newProjectName = ref('')
+const newAdminName = ref('')
+const newAdminPassword = ref('')
+const savingProject = ref(false)
+const projectError = ref('')
 
-async function loadSettings() {
-  try {
-    const s = await api.getSettings()
-    projectName.value = s.name
-  } catch (e) {
-    // keep default
-  }
+onMounted(() => project.ensureSelected())
+
+function toggleProjectMenu() {
+  projectMenuOpen.value = !projectMenuOpen.value
+  editingName.value = false
+  creatingProject.value = false
+  projectError.value = ''
+  if (projectMenuOpen.value) project.loadList()
 }
-onMounted(loadSettings)
-
+function pickProject(p) {
+  project.select(p)
+  projectMenuOpen.value = false
+  router.push({ name: 'home' })
+}
 function startEditName() {
-  if (!canEdit.value) return
-  nameDraft.value = projectName.value
+  if (!canEdit.value || !project.state.current) return
+  nameDraft.value = project.state.current.name
   editingName.value = true
 }
 async function saveName() {
   const name = nameDraft.value.trim()
-  if (!name || name === projectName.value) {
+  if (!name || name === project.state.current?.name) {
     editingName.value = false
     return
   }
   savingName.value = true
   try {
-    const s = await api.updateSettings({ name })
-    projectName.value = s.name
+    await project.rename(name)
   } catch (e) {
     // ignore, keep previous
   } finally {
     savingName.value = false
     editingName.value = false
+  }
+}
+function startCreateProject() {
+  newProjectName.value = ''
+  newAdminName.value = ''
+  newAdminPassword.value = ''
+  projectError.value = ''
+  creatingProject.value = true
+}
+async function saveNewProject() {
+  const name = newProjectName.value.trim()
+  const adminName = newAdminName.value.trim()
+  const adminPassword = newAdminPassword.value
+  if (!name || !adminName || !adminPassword) {
+    projectError.value = 'Preencha nome do projeto, seu nome e uma senha.'
+    return
+  }
+  savingProject.value = true
+  projectError.value = ''
+  try {
+    await project.create(name, adminName, adminPassword)
+    creatingProject.value = false
+    projectMenuOpen.value = false
+    await auth.login(adminName, adminPassword, project.state.current.id)
+    router.push({ name: 'home' })
+  } catch (e) {
+    projectError.value = e.status === 400 ? 'Já existe um projeto com esse nome.' : 'Não foi possível criar o projeto.'
+  } finally {
+    savingProject.value = false
   }
 }
 
@@ -129,6 +169,7 @@ watch(accountOpen, (open) => {
 
 function onDocClick(e) {
   if (accountOpen.value && !e.target.closest('.account-menu')) accountOpen.value = false
+  if (projectMenuOpen.value && !e.target.closest('.project-menu')) projectMenuOpen.value = false
 }
 onMounted(() => document.addEventListener('click', onDocClick))
 onUnmounted(() => document.removeEventListener('click', onDocClick))
@@ -172,16 +213,61 @@ defineExpose({ mascot })
       <span style="font-size:15px; font-weight:800; color:#f5f4fb; letter-spacing:-.01em;">ShyDevs</span>
     </button>
 
-    <button v-if="!editingName" type="button" @click="startEditName" :disabled="!canEdit"
-      :aria-label="canEdit ? `Renomear projeto (nome atual: ${projectName})` : `Projeto: ${projectName}`"
-      :style="{ display: 'flex', alignItems: 'center', gap: '6px', background: '#16161f', border: '1px solid #22222f', borderRadius: '8px', padding: '5px 10px', fontSize: '12.5px', fontWeight: '600', color: '#c7c5dc', flex: 'none', whiteSpace: 'nowrap', cursor: canEdit ? 'pointer' : 'default' }">
-      <span style="width:7px; height:7px; border-radius:50%; background:#7c6fff; flex:none;" aria-hidden="true"></span>{{ projectName }}
-      <i v-if="canEdit" class="fi fi-sr-pencil" aria-hidden="true" style="font-size:9px; opacity:.6;"></i>
-    </button>
-    <div v-else style="display:flex; align-items:center; gap:6px; flex:none;">
-      <label for="project-name-input" class="sr-only">Nome do projeto</label>
-      <input id="project-name-input" v-model="nameDraft" @keyup.enter="saveName" @keyup.esc="editingName = false" @blur="saveName" autofocus
-        style="border:1px solid #7c6fff; background:#0e0e14; border-radius:8px; padding:5px 10px; font-size:12.5px; font-weight:600; color:#f5f4fb; outline:none; width:160px;" />
+    <div class="project-menu" style="position:relative; flex:none; z-index:100;">
+      <button type="button" @click="toggleProjectMenu"
+        aria-haspopup="menu" :aria-expanded="projectMenuOpen"
+        :aria-label="`Projeto atual: ${projectName}. Trocar de projeto`"
+        style="display:flex; align-items:center; gap:6px; background:#16161f; border:1px solid #22222f; border-radius:8px; padding:5px 10px; font-size:12.5px; font-weight:600; color:#c7c5dc; white-space:nowrap; cursor:pointer;">
+        <span style="width:7px; height:7px; border-radius:50%; background:#7c6fff; flex:none;" aria-hidden="true"></span>{{ projectName }}
+        <i class="fi fi-sr-angle-small-down" aria-hidden="true" style="font-size:9px; opacity:.6;"></i>
+      </button>
+
+      <Transition :css="false" @enter="popEnter" @leave="popLeave">
+        <div v-if="projectMenuOpen" role="menu" @click.stop style="position:absolute; left:0; top:38px; background:#14141d; border:1px solid #26263a; border-radius:10px; padding:8px; width:230px; z-index:500; box-shadow:0 14px 40px rgba(0,0,0,.5);">
+          <div style="font-size:10px; font-weight:700; letter-spacing:.06em; color:#65637a; text-transform:uppercase; padding:4px 8px 6px;">Projetos</div>
+          <button v-for="p in project.state.list" :key="p.id" role="menuitem" type="button" @click="pickProject(p)"
+            :style="{ width:'100%', textAlign:'left', display:'flex', alignItems:'center', gap:'8px', fontSize:'12px', fontWeight: p.id === project.state.current?.id ? '700' : '500', color: p.id === project.state.current?.id ? '#f5f4fb' : '#c7c5dc', padding:'8px', borderRadius:'7px', cursor:'pointer', border:'none', background: p.id === project.state.current?.id ? 'rgba(124,111,255,.14)' : 'transparent' }">
+            <i class="fi fi-sr-folder" aria-hidden="true" style="font-size:11px; opacity:.7;"></i>{{ p.name }}
+            <i v-if="p.id === project.state.current?.id" class="fi fi-sr-check" aria-hidden="true" style="margin-left:auto; font-size:10px; color:#7c6fff;"></i>
+          </button>
+
+          <div v-if="canEdit && project.state.current" style="border-top:1px solid #22222f; margin-top:6px; padding-top:6px;">
+            <button v-if="!editingName" role="menuitem" type="button" @click="startEditName" style="width:100%; text-align:left; display:flex; align-items:center; gap:8px; font-size:12px; color:#c7c5dc; padding:8px; border-radius:7px; cursor:pointer; border:none; background:transparent;">
+              <i class="fi fi-sr-pencil" aria-hidden="true"></i>Renomear projeto atual
+            </button>
+            <form v-else @submit.prevent="saveName" style="padding:4px 4px 6px; display:flex; gap:6px;">
+              <label for="project-name-input" class="sr-only">Nome do projeto</label>
+              <input id="project-name-input" v-model="nameDraft" @keyup.esc="editingName = false" autofocus
+                style="flex:1; min-width:0; border:1px solid #7c6fff; background:#0e0e14; border-radius:7px; padding:7px 9px; font-size:12px; color:#f5f4fb; outline:none;" />
+              <button type="submit" :disabled="savingName" style="border:none; background:#7c6fff; color:#0a0a10; border-radius:7px; padding:7px 10px; font-size:11.5px; font-weight:700; cursor:pointer;">Ok</button>
+            </form>
+          </div>
+
+          <div style="border-top:1px solid #22222f; margin-top:6px; padding-top:6px;">
+            <button v-if="!creatingProject" role="menuitem" type="button" @click="startCreateProject" style="width:100%; text-align:left; display:flex; align-items:center; gap:8px; font-size:12px; color:#b3aaff; padding:8px; border-radius:7px; cursor:pointer; border:none; background:transparent;">
+              <i class="fi fi-sr-plus-small" aria-hidden="true"></i>Criar novo projeto
+            </button>
+            <form v-else @submit.prevent="saveNewProject" style="padding:4px 4px 6px; display:flex; flex-direction:column; gap:6px;">
+              <label for="new-project-name" class="sr-only">Nome do novo projeto</label>
+              <input id="new-project-name" v-model="newProjectName" placeholder="Nome do projeto" autofocus
+                style="border:1px solid #26263a; background:#0e0e14; border-radius:7px; padding:7px 9px; font-size:12px; color:#f5f4fb; outline:none;" />
+              <label for="new-project-admin" class="sr-only">Seu nome</label>
+              <input id="new-project-admin" v-model="newAdminName" placeholder="Seu nome (vira admin)"
+                style="border:1px solid #26263a; background:#0e0e14; border-radius:7px; padding:7px 9px; font-size:12px; color:#f5f4fb; outline:none;" />
+              <label for="new-project-password" class="sr-only">Senha</label>
+              <input id="new-project-password" v-model="newAdminPassword" type="password" placeholder="Senha"
+                style="border:1px solid #26263a; background:#0e0e14; border-radius:7px; padding:7px 9px; font-size:12px; color:#f5f4fb; outline:none;" />
+              <div v-if="projectError" style="font-size:11px; color:#ff8f98;">{{ projectError }}</div>
+              <div style="display:flex; gap:6px;">
+                <button type="submit" :disabled="savingProject" style="flex:1; border:none; background:#7c6fff; color:#0a0a10; border-radius:7px; padding:7px 0; font-size:11.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+                  <span v-if="savingProject" class="btn-spinner" aria-hidden="true"></span>{{ savingProject ? 'Criando…' : 'Criar' }}
+                </button>
+                <button type="button" @click="creatingProject = false" style="border:1px solid #26263a; background:transparent; color:#8b899f; border-radius:7px; padding:7px 10px; font-size:11.5px; cursor:pointer;">Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </Transition>
     </div>
 
     <div style="margin-left:4px; flex:none;">

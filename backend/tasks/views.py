@@ -9,12 +9,23 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import (
-    Activity, Attachment, AuthToken, Comment, Person, Priority, ProjectSettings, Role, Status, Subtask, Task,
+    Activity, Attachment, AuthToken, Comment, Person, Priority, Project, Role, Status, Subtask, Task,
 )
 from .serializers import (
-    ActivitySerializer, AttachmentSerializer, CommentSerializer, PersonSerializer, RoleSerializer,
-    SubtaskSerializer, TaskSerializer,
+    ActivitySerializer, AttachmentSerializer, CommentSerializer, PersonSerializer, ProjectSerializer,
+    RoleSerializer, SubtaskSerializer, TaskSerializer,
 )
+
+
+def project_id_from(request):
+    """The project a request is scoped to: query param on reads, body field
+    on writes. Returns None (never raises) if absent/not a valid integer —
+    callers decide what an absent project means for that endpoint."""
+    raw = request.query_params.get('project') if request.method in permissions.SAFE_METHODS else request.data.get('project')
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 def log_admin_event(actor, message, event_type=Activity.EventType.SYSTEM, details=None, task=None):
@@ -84,6 +95,51 @@ class SubtaskPermission(permissions.BasePermission):
         return request.method == 'PATCH' and obj.task.assignee_id == getattr(user, 'id', None)
 
 
+class ProjectPermission(permissions.BasePermission):
+    """Anyone can read or create a project (creating your studio's workspace
+    doesn't require being logged into one yet). Renaming/deleting a project
+    requires being an admin *of that specific project*."""
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS or request.method == 'POST':
+            return True
+        user = request.user
+        return bool(user and getattr(user, 'is_authenticated', False))
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        user = request.user
+        return bool(
+            getattr(user, 'is_admin', False)
+            and getattr(user, 'project_id', None) == obj.id
+        )
+
+
+class ProjectViewSet(viewsets.ModelViewSet):
+    queryset = Project.objects.all()
+    serializer_class = ProjectSerializer
+    permission_classes = [ProjectPermission]
+
+    def create(self, request, *args, **kwargs):
+        name = (request.data.get('name') or '').strip()
+        if not name:
+            return Response({'detail': 'Informe o nome do projeto.'}, status=400)
+        if Project.objects.filter(name__iexact=name).exists():
+            return Response({'detail': 'Já existe um projeto com esse nome.'}, status=400)
+
+        project = Project.objects.create(name=name)
+
+        admin_name = (request.data.get('admin_name') or '').strip()
+        admin_password = request.data.get('admin_password') or ''
+        if admin_name and admin_password:
+            admin = Person(project=project, name=admin_name, is_admin=True)
+            admin.set_password(admin_password)
+            admin.save()
+
+        return Response(ProjectSerializer(project).data, status=http_status.HTTP_201_CREATED)
+
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -91,7 +147,13 @@ class LoginView(APIView):
         name = (request.data.get('name') or '').strip()
         password = request.data.get('password') or ''
         try:
-            person = Person.objects.get(name__iexact=name)
+            project_id = int(request.data.get('project'))
+        except (TypeError, ValueError):
+            project_id = None
+        if not project_id:
+            return Response({'detail': 'Selecione um projeto.'}, status=400)
+        try:
+            person = Person.objects.get(project_id=project_id, name__iexact=name)
         except Person.DoesNotExist:
             return Response({'detail': 'Credenciais inválidas.'}, status=http_status.HTTP_401_UNAUTHORIZED)
 
@@ -122,7 +184,6 @@ class MeView(APIView):
 
 
 class PersonViewSet(viewsets.ModelViewSet):
-    queryset = Person.objects.all().order_by('name')
     serializer_class = PersonSerializer
     permission_classes = [IsAdminOrReadOnly]
 
@@ -131,15 +192,23 @@ class PersonViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated()]
         return super().get_permissions()
 
+    def get_queryset(self):
+        qs = Person.objects.all().order_by('name')
+        user = self.request.user
+        if getattr(user, 'is_authenticated', False):
+            return qs.filter(project_id=user.project_id)
+        project_id = project_id_from(self.request)
+        return qs.filter(project_id=project_id) if project_id else qs.none()
+
     def _would_remove_last_admin(self, instance, validated_data):
         becoming_non_admin = 'is_admin' in validated_data and not validated_data['is_admin']
         return (
             instance.is_admin and becoming_non_admin
-            and Person.objects.filter(is_admin=True).exclude(pk=instance.pk).count() == 0
+            and Person.objects.filter(project_id=instance.project_id, is_admin=True).exclude(pk=instance.pk).count() == 0
         )
 
     def perform_create(self, serializer):
-        person = serializer.save()
+        person = serializer.save(project=self.request.user.project)
         log_admin_event(
             self.request.user,
             f'{self.request.user.name} adicionou {person.name} à equipe.',
@@ -173,7 +242,7 @@ class PersonViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.is_admin and Person.objects.filter(is_admin=True).exclude(pk=instance.pk).count() == 0:
+        if instance.is_admin and Person.objects.filter(project_id=instance.project_id, is_admin=True).exclude(pk=instance.pk).count() == 0:
             return Response({'detail': 'Precisa existir pelo menos um administrador.'}, status=400)
         log_admin_event(
             request.user, f'{request.user.name} removeu {instance.name} da equipe.',
@@ -219,12 +288,19 @@ class PersonViewSet(viewsets.ModelViewSet):
 
 
 class RoleViewSet(viewsets.ModelViewSet):
-    queryset = Role.objects.all()
     serializer_class = RoleSerializer
     permission_classes = [IsAdminOrReadOnly]
 
+    def get_queryset(self):
+        qs = Role.objects.all()
+        user = self.request.user
+        if getattr(user, 'is_authenticated', False):
+            return qs.filter(project_id=user.project_id)
+        project_id = project_id_from(self.request)
+        return qs.filter(project_id=project_id) if project_id else qs.none()
+
     def perform_create(self, serializer):
-        role = serializer.save()
+        role = serializer.save(project=self.request.user.project)
         log_admin_event(
             self.request.user, f'{self.request.user.name} criou o cargo {role.name}.',
             Activity.EventType.TEAM, {'cargo': role.name, 'cor': role.color},
@@ -243,7 +319,7 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        in_use = Task.objects.filter(role=instance.name).exists() or instance.people.exists()
+        in_use = Task.objects.filter(project_id=instance.project_id, role=instance.name).exists() or instance.people.exists()
         if in_use:
             return Response(
                 {'detail': 'Esse cargo está em uso por pessoas ou tarefas e não pode ser removido.'},
@@ -289,6 +365,13 @@ class TaskViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Task.objects.select_related('assignee').prefetch_related('subtasks', 'attachments').all()
         params = self.request.query_params
+        user = self.request.user
+
+        if getattr(user, 'is_authenticated', False):
+            qs = qs.filter(project_id=user.project_id)
+        else:
+            project_id = project_id_from(self.request)
+            qs = qs.filter(project_id=project_id) if project_id else qs.none()
 
         role = params.get('role')
         if role and role != 'Todos':
@@ -318,6 +401,9 @@ class TaskViewSet(viewsets.ModelViewSet):
 
         return qs
 
+    def perform_create(self, serializer):
+        serializer.save(project=self.request.user.project)
+
     def perform_destroy(self, instance):
         log_admin_event(
             self.request.user,
@@ -333,13 +419,15 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context['role_colors'] = dict(Role.objects.values_list('name', 'color'))
+        project_id = getattr(self.request.user, 'project_id', None) or project_id_from(self.request)
+        context['role_colors'] = dict(Role.objects.filter(project_id=project_id).values_list('name', 'color'))
         return context
 
     @action(detail=False, methods=['get'])
     def balance(self, request):
+        project_id = getattr(request.user, 'project_id', None) or project_id_from(request)
         best = None
-        for role in Role.objects.all():
+        for role in Role.objects.filter(project_id=project_id):
             members = Person.objects.filter(roles=role).distinct()
             if members.count() < 2:
                 continue
@@ -367,15 +455,16 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
-        tasks = list(Task.objects.select_related('assignee').all())
+        project_id = request.user.project_id
+        tasks = list(Task.objects.filter(project_id=project_id).select_related('assignee'))
         total = len(tasks)
         by_status = {s.value: sum(1 for t in tasks if t.status == s.value) for s in Status}
-        by_role = {r.name: sum(1 for t in tasks if t.role == r.name) for r in Role.objects.all()}
+        by_role = {r.name: sum(1 for t in tasks if t.role == r.name) for r in Role.objects.filter(project_id=project_id)}
         by_priority = {p.value: sum(1 for t in tasks if t.priority == p.value) for p in Priority}
 
         overdue = sum(1 for t in tasks if t.due_date and t.due_date < timezone.now().date() and t.status != Status.CONCLUIDA)
 
-        people = list(Person.objects.prefetch_related('roles').all())
+        people = list(Person.objects.filter(project_id=project_id).prefetch_related('roles'))
         workload = [
             {
                 'name': p.name,
@@ -405,7 +494,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         if not ids or not fields:
             return Response({'detail': 'Informe ids e ao menos um campo.'}, status=400)
 
-        qs = Task.objects.filter(id__in=ids)
+        qs = Task.objects.filter(id__in=ids, project_id=request.user.project_id)
         if not getattr(request.user, 'is_admin', False):
             fields = {'status': fields['status']} if 'status' in fields else {}
             if not fields:
@@ -437,14 +526,15 @@ class TaskViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['delete'], url_path='bulk-delete')
     def bulk_delete(self, request):
         ids = request.data.get('ids') or []
-        tasks = list(Task.objects.filter(id__in=ids).select_related('assignee'))
+        qs = Task.objects.filter(id__in=ids, project_id=request.user.project_id)
+        tasks = list(qs.select_related('assignee'))
         for task in tasks:
             log_admin_event(
                 request.user, f'{request.user.name} excluiu a tarefa {task.code} · {task.title}.',
                 Activity.EventType.TASK_UPDATED,
                 {'tarefa excluída': task.code, 'título': task.title},
             )
-        deleted, _ = Task.objects.filter(id__in=ids).delete()
+        deleted, _ = qs.delete()
         return Response({'deleted': deleted})
 
 
@@ -454,6 +544,12 @@ class SubtaskViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Subtask.objects.select_related('task').all()
+        user = self.request.user
+        if getattr(user, 'is_authenticated', False):
+            qs = qs.filter(task__project_id=user.project_id)
+        else:
+            project_id = project_id_from(self.request)
+            qs = qs.filter(task__project_id=project_id) if project_id else qs.none()
         task_id = self.request.query_params.get('task')
         if task_id:
             qs = qs.filter(task_id=task_id)
@@ -487,7 +583,10 @@ class ActivityViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = Activity.objects.select_related('actor', 'task').all()
+        project_id = self.request.user.project_id
+        qs = Activity.objects.select_related('actor', 'task').filter(
+            Q(actor__project_id=project_id) | Q(task__project_id=project_id)
+        )
         task_id = self.request.query_params.get('task')
         if task_id:
             qs = qs.filter(task_id=task_id)
@@ -523,7 +622,7 @@ class CommentViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'delete', 'head', 'options']
 
     def get_queryset(self):
-        qs = Comment.objects.select_related('author', 'task').all()
+        qs = Comment.objects.select_related('author', 'task').filter(task__project_id=self.request.user.project_id)
         task_id = self.request.query_params.get('task')
         if task_id:
             qs = qs.filter(task_id=task_id)
@@ -577,6 +676,12 @@ class AttachmentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Attachment.objects.select_related('uploaded_by').all()
+        user = self.request.user
+        if getattr(user, 'is_authenticated', False):
+            qs = qs.filter(task__project_id=user.project_id)
+        else:
+            project_id = project_id_from(self.request)
+            qs = qs.filter(task__project_id=project_id) if project_id else qs.none()
         task_id = self.request.query_params.get('task')
         if task_id:
             qs = qs.filter(task_id=task_id)
@@ -613,43 +718,23 @@ class BootstrapAdminView(APIView):
         name = (request.data.get('name') or '').strip()
         password = request.data.get('password') or ''
         role = request.data.get('role') or 'Manager'
-        if not name or not password:
-            return Response({'detail': 'Informe nome e senha.'}, status=400)
+        project_name = (request.data.get('project') or '').strip()
+        if not name or not password or not project_name:
+            return Response({'detail': 'Informe nome, senha e projeto.'}, status=400)
 
-        person = Person.objects.filter(name__iexact=name).first()
+        project, _ = Project.objects.get_or_create(name=project_name)
+
+        person = Person.objects.filter(project=project, name__iexact=name).first()
         if person is None:
-            person = Person(name=name, is_admin=True)
+            person = Person(project=project, name=name, is_admin=True)
         else:
             person.is_admin = True
         person.set_password(password)
         person.save()
-        role_obj = Role.objects.filter(name=role).first()
-        if role_obj and not person.roles.filter(pk=role_obj.pk).exists():
+        role_obj = Role.objects.filter(project=project, name=role).first()
+        if not role_obj:
+            role_obj = Role.objects.create(project=project, name=role)
+        if not person.roles.filter(pk=role_obj.pk).exists():
             person.roles.add(role_obj)
 
-        return Response({'detail': f'Admin "{person.name}" pronto.'})
-
-
-class ProjectSettingsView(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        return Response({'name': ProjectSettings.load().name})
-
-    def patch(self, request):
-        user = request.user
-        if not (user and getattr(user, 'is_authenticated', False) and getattr(user, 'is_admin', False)):
-            return Response({'detail': 'Apenas administradores.'}, status=http_status.HTTP_403_FORBIDDEN)
-        name = (request.data.get('name') or '').strip()
-        if not name:
-            return Response({'detail': 'Nome inválido.'}, status=400)
-        settings_obj = ProjectSettings.load()
-        previous_name = settings_obj.name
-        settings_obj.name = name[:120]
-        settings_obj.save()
-        log_admin_event(
-            user, f'{user.name} renomeou o projeto para {settings_obj.name}.',
-            Activity.EventType.SETTINGS,
-            {'nome do projeto': {'antes': previous_name, 'depois': settings_obj.name}},
-        )
-        return Response({'name': settings_obj.name})
+        return Response({'detail': f'Admin "{person.name}" pronto no projeto "{project.name}".'})
