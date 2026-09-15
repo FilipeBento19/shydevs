@@ -41,10 +41,71 @@ def _task_url(task):
     return f'{base}/tasks/{task.id}' if base and task else None
 
 
-def _flatten(value):
-    if isinstance(value, dict):
-        return ' → '.join(str(v) for v in value.values())
+FIELD_LABELS = {
+    'título': 'Título',
+    'descrição': 'Descrição',
+    'cargo': 'Cargo',
+    'prazo': 'Prazo',
+    'prioridade': 'Prioridade',
+    'responsável': 'Responsável',
+    'status': 'Status',
+    'etapa': 'Etapa',
+    'nota de conclusão': 'Nota de Conclusão',
+    'marcação': 'Marcado como concluída',
+    'comentário': 'Comentário',
+}
+
+
+def _label(key):
+    key = str(key)
+    return FIELD_LABELS.get(key, key[:1].upper() + key[1:])
+
+
+def _format_scalar(value):
+    if isinstance(value, bool):
+        return 'Sim' if value else 'Não'
+    if value in ('True', 'False'):
+        return 'Sim' if value == 'True' else 'Não'
     return str(value)
+
+
+# Quoted-value fields: the interesting part is the free-text content itself,
+# not a before/after transition, so show it as a quote instead of an arrow.
+QUOTED_FIELDS = {'nota de conclusão', 'comentário'}
+
+
+def _detail_lines(activity):
+    """Turns activity.details into readable "**Label:** value" lines. The
+    shape of `details` varies by event_type — see signals.py/views.py for
+    where each one is built — so this reads by event_type rather than
+    guessing from the raw structure."""
+    details = activity.details or {}
+    event_type = activity.event_type
+
+    if event_type in ('task_status', 'task_completed', 'task_assigned'):
+        # {'antes': ..., 'depois': ...} — only the resulting value matters.
+        label = 'Responsável' if event_type == 'task_assigned' else 'Status'
+        depois = details.get('depois')
+        return [f'**{label}:** {_format_scalar(depois)}'] if depois is not None else []
+
+    if event_type == 'task_updated':
+        # {'alterações': {'campo': {'antes': ..., 'depois': ...}, ...}}
+        lines = []
+        for field_key, change in (details.get('alterações') or {}).items():
+            depois = change.get('depois') if isinstance(change, dict) else change
+            if field_key in QUOTED_FIELDS:
+                lines.append(f'**{_label(field_key)}:** "{depois}"')
+            else:
+                lines.append(f'**{_label(field_key)}:** {_format_scalar(depois)}')
+        return lines
+
+    lines = []
+    for key, value in list(details.items())[:6]:
+        if str(key) in QUOTED_FIELDS:
+            lines.append(f'**{_label(key)}:** "{value}"')
+        else:
+            lines.append(f'**{_label(key)}:** {_format_scalar(value)}')
+    return lines
 
 
 def _text(content):
@@ -64,9 +125,7 @@ def build_container(activity, mention_line=None):
     lines = []
     if task:
         lines.append(f'**Tarefa:** {task.code} · {task.title}')
-    for key, value in list((activity.details or {}).items())[:6]:
-        label = str(key)[:1].upper() + str(key)[1:]
-        lines.append(f'**{label}:** {_flatten(value)}')
+    lines.extend(_detail_lines(activity))
 
     project_name = task.project.name if task and task.project_id else 'ShyDevs'
 
