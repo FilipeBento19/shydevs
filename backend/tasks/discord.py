@@ -30,6 +30,9 @@ EMOJI = {
     'overdue': '⏰',
 }
 NOTIFY_EVENT_TYPES = set(COLORS)
+# Events worth @mentioning the assignee for — the ones where it's genuinely
+# their move next. Status updates/comments/checklist stay silent pings.
+MENTION_EVENT_TYPES = {'task_created', 'task_assigned', 'overdue'}
 
 
 def _task_url(task):
@@ -79,5 +82,17 @@ def notify(activity):
     webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
     if not webhook_url or activity.event_type not in NOTIFY_EVENT_TYPES:
         return
+
     payload = {'username': 'ShyDevs', 'embeds': [build_embed(activity)]}
+
+    task = activity.task
+    discord_id = None
+    if activity.event_type in MENTION_EVENT_TYPES and task and task.assignee_id:
+        discord_id = (task.assignee.discord_id or '').strip()
+    if discord_id:
+        payload['content'] = f'<@{discord_id}>'
+        payload['allowed_mentions'] = {'parse': [], 'users': [discord_id]}
+    else:
+        payload['allowed_mentions'] = {'parse': []}
+
     threading.Thread(target=_post, args=(webhook_url, payload), daemon=True).start()

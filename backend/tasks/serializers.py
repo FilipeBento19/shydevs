@@ -19,7 +19,7 @@ class PersonSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Person
-        fields = ['id', 'project', 'name', 'roles', 'photo', 'password', 'is_admin']
+        fields = ['id', 'project', 'name', 'roles', 'photo', 'password', 'is_admin', 'discord_id']
         read_only_fields = ['project']
 
     def _resolve_roles(self, names, project):

@@ -18,7 +18,7 @@ const error = ref('')
 const submitting = ref(false)
 const confirmDeleteId = ref(null)
 
-const form = reactive({ name: '', roles: [], password: '', is_admin: false })
+const form = reactive({ name: '', roles: [], password: '', is_admin: false, discord_id: '' })
 
 const adminCount = computed(() => people.value.filter((p) => p.is_admin).length)
 
@@ -68,12 +68,14 @@ async function addPerson() {
       roles: form.roles,
       password: form.password || undefined,
       is_admin: form.is_admin,
+      discord_id: form.discord_id.trim() || undefined,
     })
     people.value.push(created)
     form.name = ''
     form.roles = []
     form.password = ''
     form.is_admin = false
+    form.discord_id = ''
     emit('changed')
   } catch (e) {
     error.value = 'Não foi possível adicionar essa pessoa.'
@@ -90,6 +92,29 @@ async function updatePersonRoles(person, newRoles) {
     emit('changed')
   } catch (e) {
     error.value = e.message || 'Não foi possível alterar os cargos dessa pessoa.'
+  }
+}
+
+// ---- Discord ID (used to @mention this person in webhook notifications) ----
+const discordDrafts = reactive({})
+function discordDraft(person) {
+  if (discordDrafts[person.id] === undefined) discordDrafts[person.id] = person.discord_id || ''
+  return discordDrafts[person.id]
+}
+const savingDiscordId = ref(null)
+async function saveDiscordId(person) {
+  const value = (discordDrafts[person.id] ?? '').trim()
+  if (value === (person.discord_id || '')) return
+  savingDiscordId.value = person.id
+  try {
+    const updated = await api.updatePerson(person.id, { discord_id: value })
+    people.value = people.value.map((p) => (p.id === updated.id ? updated : p))
+    discordDrafts[person.id] = updated.discord_id || ''
+  } catch (e) {
+    error.value = e.message || 'Não foi possível salvar o Discord ID.'
+    discordDrafts[person.id] = person.discord_id || ''
+  } finally {
+    savingDiscordId.value = null
   }
 }
 
@@ -196,6 +221,15 @@ async function removePerson(person) {
               <div style="width:220px; margin-top:3px;">
                 <MultiRoleSelect :model-value="p.roles || []" :options="roleOptions" width="100%" label="Cargos" @update:model-value="(v) => updatePersonRoles(p, v)" />
               </div>
+              <div style="width:220px; margin-top:6px; display:flex; align-items:center; gap:6px;">
+                <i class="fi fi-sr-at" aria-hidden="true" style="font-size:11px; color:#65637a; flex:none;"></i>
+                <label :for="`discord-id-${p.id}`" class="sr-only">Discord ID de {{ p.name }}</label>
+                <input :id="`discord-id-${p.id}`" :value="discordDraft(p)" @input="discordDrafts[p.id] = $event.target.value"
+                  @blur="saveDiscordId(p)" @keyup.enter="$event.target.blur()"
+                  placeholder="Discord ID (para @menção)" inputmode="numeric"
+                  style="flex:1; min-width:0; box-sizing:border-box; border:1px solid #22222f; background:#0e0e14; border-radius:6px; padding:5px 8px; font-size:11px; color:#c7c5dc; outline:none;" />
+                <span v-if="savingDiscordId === p.id" class="btn-spinner" aria-hidden="true" style="flex:none;"></span>
+              </div>
             </div>
             <div style="display:flex; gap:6px; flex:none;">
               <button @click="toggleAdmin(p)" :disabled="togglingAdminId === p.id"
@@ -228,6 +262,10 @@ async function removePerson(person) {
           <div>
             <label for="team-password" style="display:block; font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Senha (opcional)</label>
             <input id="team-password" v-model="form.password" type="password" placeholder="Para essa pessoa poder entrar" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none;" />
+          </div>
+          <div>
+            <label for="team-discord-id" style="display:block; font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Discord ID (opcional)</label>
+            <input id="team-discord-id" v-model="form.discord_id" inputmode="numeric" placeholder="Para @mencionar nas notificações" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none;" />
           </div>
           <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#c7c5dc;">
             <Checkbox :model-value="form.is_admin" @update:model-value="form.is_admin = $event" aria-label="Tornar administrador" />

@@ -54,6 +54,9 @@ class Person(models.Model):
     password = models.CharField(max_length=128, blank=True)
     photo = models.ImageField(upload_to='avatars/', blank=True, null=True)
     is_admin = models.BooleanField(default=False)
+    # Discord's numeric user ID (not a username) — set by an admin on the
+    # Team screen, used to @mention this person in webhook notifications.
+    discord_id = models.CharField(max_length=32, blank=True)
 
     # Minimal shape expected by DRF permission checks (IsAuthenticated etc.)
     is_authenticated = True
