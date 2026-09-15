@@ -43,7 +43,7 @@ function playEntrance() {
   const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
   const step = (targets, vars, pos) => {
     const t = safeTargets(targets)
-    if (t.length) tl.from(t, vars, pos)
+    if (t.length) tl.from(t, { clearProps: 'transform', ...vars }, pos)
   }
   step(headerBarEl.value, { y: -16, autoAlpha: 0, duration: 0.5 })
   step([heroTitleEl.value, heroSubtitleEl.value], { y: 18, autoAlpha: 0, duration: 0.5, stagger: 0.08 }, '-=0.25')

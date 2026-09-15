@@ -62,7 +62,7 @@ function playEntrance() {
   const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
   const step = (targets, vars, pos) => {
     const t = safeTargets(targets)
-    if (t.length) tl.from(t, vars, pos)
+    if (t.length) tl.from(t, { clearProps: 'transform', ...vars }, pos)
   }
   step(roleChipsEl.value?.querySelectorAll('button'), { y: 10, autoAlpha: 0, stagger: 0.04, duration: 0.35 })
   step(filterBarEl.value, { y: 10, autoAlpha: 0, duration: 0.4 }, '-=0.2')
@@ -74,7 +74,7 @@ watch(balance, async (val) => {
   if (!val) return
   await nextTick()
   if (reduceMotion || !balanceCardEl.value) return
-  gsap.from(balanceCardEl.value, { y: 14, autoAlpha: 0, duration: 0.5, ease: 'power3.out' })
+  gsap.from(balanceCardEl.value, { y: 14, autoAlpha: 0, duration: 0.5, ease: 'power3.out', clearProps: 'transform' })
 })
 
 onMounted(async () => {
