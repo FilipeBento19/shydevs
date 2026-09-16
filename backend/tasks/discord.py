@@ -233,23 +233,46 @@ def build_digest_container(name, stats):
     return build_reminder_container('Seu resumo de tarefas', lines, 'Resumo automático · a cada 2 dias')
 
 
-def send_task_reminder_dm(task, heading, message, footer_note='Lembrete automático'):
+def _log_outgoing(person, discord_id, source, content):
+    """Records a DM in the Bot tab's history. Only DMs are logged here —
+    the webhook channel notifications are a separate, unlogged system.
+    Never lets a logging failure take down the actual send."""
+    from .models import DiscordMessage
+    try:
+        DiscordMessage.objects.create(
+            project=person.project if person else None,
+            person=person,
+            discord_id=discord_id,
+            direction=DiscordMessage.Direction.OUTGOING,
+            source=source,
+            content=content,
+        )
+    except Exception:
+        pass
+
+
+def send_task_reminder_dm(task, heading, message, source, footer_note='Lembrete automático'):
     if not (task.assignee_id and (task.assignee.discord_id or '').strip()):
         return
     if not os.environ.get('DISCORD_BOT_TOKEN'):
         return
+    discord_id = task.assignee.discord_id.strip()
     payload = {
         'flags': IS_COMPONENTS_V2,
         'components': [build_task_reminder_container(heading, task, message, footer_note)],
     }
-    _spawn(_send_dm, (task.assignee.discord_id.strip(), payload, None))
+    _spawn(_send_dm, (discord_id, payload, None))
+    _log_outgoing(task.assignee, discord_id, source, f'{heading}\n{message}')
 
 
 def send_digest_dm(person, stats):
     if not ((person.discord_id or '').strip() and os.environ.get('DISCORD_BOT_TOKEN')):
         return
+    discord_id = person.discord_id.strip()
     payload = {'flags': IS_COMPONENTS_V2, 'components': [build_digest_container(person.name, stats)]}
-    _spawn(_send_dm, (person.discord_id.strip(), payload, None))
+    _spawn(_send_dm, (discord_id, payload, None))
+    content = f'Abertas: {stats["open"]} · Em andamento: {stats["in_progress"]} · Atrasadas: {stats["overdue"]}'
+    _log_outgoing(person, discord_id, 'digest', content)
 
 
 def _post_webhook(webhook_url, payload, banner_path=None):
@@ -330,7 +353,7 @@ def _send_dm(discord_id, payload, banner_path=None):
         pass  # best-effort — a bot hiccup should never break the app
 
 
-def send_plain_dm(discord_id, text):
+def send_plain_dm(discord_id, text, person=None):
     """Blocking, and returns whether it actually worked — used by the
     admin's "send a Discord message" feature on the Team screen, where the
     caller wants per-recipient success/failure to show back in the UI
@@ -345,6 +368,7 @@ def send_plain_dm(discord_id, text):
             json={'content': text, 'allowed_mentions': {'parse': []}}, timeout=10,
         )
         resp.raise_for_status()
+        _log_outgoing(person, discord_id, 'admin', text)
         return True
     except requests.RequestException:
         return False

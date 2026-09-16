@@ -12,11 +12,12 @@ from rest_framework.views import APIView
 
 from . import discord
 from .models import (
-    Activity, Attachment, AuthToken, Comment, Person, Priority, Project, Role, Status, Subtask, Task,
+    Activity, Attachment, AuthToken, Comment, DiscordMessage, Person, Priority, Project, Role, Status,
+    Subtask, Task,
 )
 from .serializers import (
-    ActivitySerializer, AttachmentSerializer, CommentSerializer, PersonSerializer, ProjectSerializer,
-    RoleSerializer, SubtaskSerializer, TaskSerializer,
+    ActivitySerializer, AttachmentSerializer, CommentSerializer, DiscordMessageSerializer, PersonSerializer,
+    ProjectSerializer, RoleSerializer, SubtaskSerializer, TaskSerializer,
 )
 
 
@@ -321,7 +322,7 @@ class PersonViewSet(viewsets.ModelViewSet):
             if not discord_id:
                 no_discord_id.append(person.name)
                 continue
-            if discord.send_plain_dm(discord_id, message):
+            if discord.send_plain_dm(discord_id, message, person=person):
                 sent.append(person.name)
             else:
                 failed.append(person.name)
@@ -642,6 +643,52 @@ class ActivityViewSet(viewsets.ReadOnlyModelViewSet):
         if request.query_params.get('scope') == 'admin' and not getattr(request.user, 'is_admin', False):
             return Response({'detail': 'Histórico administrativo restrito.'}, status=http_status.HTTP_403_FORBIDDEN)
         return super().list(request, *args, **kwargs)
+
+
+class DiscordMessageViewSet(viewsets.ReadOnlyModelViewSet):
+    """The Bot tab's feed: every DM the bot sent or received. The webhook
+    channel notifications are intentionally not part of this — separate,
+    unlogged system."""
+
+    serializer_class = DiscordMessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not getattr(user, 'is_admin', False):
+            return DiscordMessage.objects.none()
+        return DiscordMessage.objects.select_related('person').filter(project_id=user.project_id)[:300]
+
+
+class IncomingDiscordMessageView(APIView):
+    """Called by the standalone discord-bot service whenever someone DMs
+    the bot, so it shows up in the Bot tab. Disabled unless
+    DISCORD_INCOMING_SECRET is set; requires that exact secret."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        configured_secret = os.environ.get('DISCORD_INCOMING_SECRET')
+        if not configured_secret:
+            return Response({'detail': 'Não encontrado.'}, status=http_status.HTTP_404_NOT_FOUND)
+        if (request.data.get('secret') or '') != configured_secret:
+            return Response({'detail': 'Não encontrado.'}, status=http_status.HTTP_404_NOT_FOUND)
+
+        discord_id = (request.data.get('discord_id') or '').strip()
+        content = (request.data.get('content') or '').strip()
+        if not discord_id or not content:
+            return Response({'detail': 'Informe discord_id e content.'}, status=400)
+
+        person = Person.objects.filter(discord_id=discord_id).first()
+        DiscordMessage.objects.create(
+            project=person.project if person else None,
+            person=person,
+            discord_id=discord_id,
+            direction=DiscordMessage.Direction.INCOMING,
+            source=DiscordMessage.Source.DM,
+            content=content,
+        )
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
 
 
 class CommentPermission(permissions.BasePermission):

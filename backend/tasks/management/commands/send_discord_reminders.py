@@ -38,6 +38,7 @@ class Command(BaseCommand):
                 task, 'Ainda não começou?',
                 f'{task.assignee.name}, essa tarefa está esperando você desde {task.status_changed_at.strftime("%d/%m")}. '
                 'Bora dar o primeiro passo?',
+                'pending_reminder',
             )
             task.pending_reminder_sent = True
             task.save(update_fields=['pending_reminder_sent'])
@@ -53,6 +54,7 @@ class Command(BaseCommand):
                 task, 'Como está o andamento?',
                 f'{task.assignee.name}, já faz uns dias que essa tarefa está em andamento. '
                 'Continue firme, ou avise se travou em algo.',
+                'in_progress_reminder',
             )
             task.in_progress_reminder_sent = True
             task.save(update_fields=['in_progress_reminder_sent'])
@@ -68,6 +70,7 @@ class Command(BaseCommand):
                 task, 'Prazo chegando',
                 f'{task.assignee.name}, o prazo é amanhã ({task.due_date.strftime("%d/%m")}). '
                 'Ainda dá tempo, mas não deixe para a última hora.',
+                'due_soon_reminder',
             )
             task.due_soon_notified = True
             task.save(update_fields=['due_soon_notified'])

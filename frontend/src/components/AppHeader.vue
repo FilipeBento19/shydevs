@@ -27,7 +27,7 @@ const navItems = computed(() => {
   const items = auth.isLoggedIn
     ? [...BASE_NAV_ITEMS, { key: 'dashboard', label: 'Dashboard', icon: 'fi-sr-chart-simple' }, { key: 'history', label: 'Histórico', icon: 'fi-sr-clock' }]
     : BASE_NAV_ITEMS
-  return canEdit.value ? [...items, { key: 'team', label: 'Equipe', icon: 'fi-sr-users' }] : items
+  return canEdit.value ? [...items, { key: 'team', label: 'Equipe', icon: 'fi-sr-users' }, { key: 'bot', label: 'Bot', icon: 'fi-sr-robot' }] : items
 })
 const activeNav = computed(() => route.meta.nav || 'board')
 

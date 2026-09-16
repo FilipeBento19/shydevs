@@ -1,12 +1,17 @@
-# ShyDevs Discord Bot (presence-only)
+# ShyDevs Discord Bot (presence + incoming DMs)
 
-Keeps the ShyDevs bot showing **online** on Discord. Nothing else — every
-actual notification (webhook messages, DMs, reminders) is sent directly by
-the Django backend over the REST API and works whether or not this service
-is running. This exists purely so the bot doesn't sit there looking
-offline in the member list, since that requires holding open a Gateway
-(WebSocket) connection, which the backend's request/response cycle has no
-place to do.
+Keeps the ShyDevs bot showing **online** on Discord, and forwards any DM
+someone sends the bot back to the Django backend so it shows up in the
+app's Bot tab. Everything else — the actual outgoing notifications
+(webhook messages, DMs, reminders) — is sent directly by the backend over
+the REST API and works whether or not this service is running. Presence
+needs this service purely because Discord only shows a bot as online
+while it holds a Gateway (WebSocket) connection open, which the backend's
+request/response cycle has no place to do.
+
+Requires the **Message Content Intent** enabled in the Discord Developer
+Portal (Bot page → Privileged Gateway Intents) — without it the bot can't
+read what people DM it and fails to connect at all.
 
 ## Local test
 
@@ -19,6 +24,8 @@ python -m venv venv
 venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 set DISCORD_BOT_TOKEN=your-bot-token-here
+set BACKEND_URL=http://localhost:8000
+set DISCORD_INCOMING_SECRET=same-value-as-the-backend-env-var
 python -c "from wsgiref.simple_server import make_server; import app; make_server('', 5001, app.app).serve_forever()"
 ```
 
@@ -53,8 +60,14 @@ the backend's deploy and vice versa:
      `gthread` worker's own thread pool sharing the process with the bot's
      asyncio loop reliably made Render's port scan never find an open port
      at all, even though Gunicorn's own log claimed to be listening.
-5. **Environment → Add Environment Variable**: `DISCORD_BOT_TOKEN` = the
-   same bot token already set on the backend service
+5. **Environment → Add Environment Variable** (three of them):
+   - `DISCORD_BOT_TOKEN` = the same bot token already set on the backend
+   - `BACKEND_URL` = the backend service's URL, e.g.
+     `https://shydevs-backend.onrender.com` (no trailing slash)
+   - `DISCORD_INCOMING_SECRET` = the same value as the backend's own
+     `DISCORD_INCOMING_SECRET` env var — this authenticates this service's
+     calls to the backend's `/api/discord/incoming/` endpoint, so it isn't
+     wide open to anyone who finds the URL
 6. Free plan is fine — deploy
 
 Render's free web services spin down after ~15 minutes with no HTTP

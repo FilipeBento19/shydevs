@@ -198,6 +198,42 @@ class Comment(models.Model):
         return f'{self.author or "Pessoa removida"} em {self.task.code}'
 
 
+class DiscordMessage(models.Model):
+    """A log of every DM the bot sent or received — automatic reminders,
+    admin-sent broadcasts, and replies people send back to the bot. Does
+    NOT cover the webhook channel notifications (task events, comments,
+    etc.), which are a separate, unlogged system."""
+
+    class Direction(models.TextChoices):
+        OUTGOING = 'outgoing', 'Enviada'
+        INCOMING = 'incoming', 'Recebida'
+
+    class Source(models.TextChoices):
+        ADMIN = 'admin', 'Mensagem manual (admin)'
+        PENDING_REMINDER = 'pending_reminder', 'Lembrete: parada em Pendente'
+        IN_PROGRESS_REMINDER = 'in_progress_reminder', 'Lembrete: presa em Em andamento'
+        DUE_SOON_REMINDER = 'due_soon_reminder', 'Lembrete: prazo chegando'
+        DIGEST = 'digest', 'Resumo periódico'
+        DM = 'dm', 'DM recebida'
+
+    # Nullable: an incoming DM might come from a Discord ID that doesn't
+    # match any registered Person (project can't be inferred either, then).
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, blank=True, related_name='discord_messages')
+    person = models.ForeignKey(Person, on_delete=models.SET_NULL, null=True, blank=True, related_name='discord_messages')
+    discord_id = models.CharField(max_length=32, blank=True)
+    direction = models.CharField(max_length=10, choices=Direction.choices)
+    source = models.CharField(max_length=30, choices=Source.choices)
+    content = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        who = self.person.name if self.person else (self.discord_id or 'desconhecido')
+        return f'{self.direction} · {who}'
+
+
 class Attachment(models.Model):
     class Kind(models.TextChoices):
         IMAGE = 'image', 'Imagem'

@@ -6,6 +6,7 @@ import NewTaskPage from './views/NewTaskPage.vue'
 import DashboardView from './components/DashboardView.vue'
 import HistoryView from './components/HistoryView.vue'
 import TeamView from './components/TeamView.vue'
+import BotView from './components/BotView.vue'
 import { auth } from './auth'
 
 const routes = [
@@ -38,6 +39,12 @@ const routes = [
     name: 'team',
     component: TeamView,
     meta: { nav: 'team', title: 'Gestão de Equipe', subtitle: 'Adicione ou remova pessoas da equipe.', adminOnly: true },
+  },
+  {
+    path: '/bot',
+    name: 'bot',
+    component: BotView,
+    meta: { nav: 'bot', title: 'Bot do Discord', subtitle: 'Tudo que o bot mandou e recebeu por DM.', adminOnly: true },
   },
   {
     path: '/tasks/new',

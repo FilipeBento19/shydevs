@@ -25,10 +25,16 @@ import os
 import threading
 
 import discord
+import requests
 
 TOKEN = os.environ.get('DISCORD_BOT_TOKEN')
+# Where to forward DMs people send the bot, so they show up in the app's
+# Bot tab. Both must be set for forwarding to happen at all.
+BACKEND_URL = (os.environ.get('BACKEND_URL') or '').rstrip('/')
+INCOMING_SECRET = os.environ.get('DISCORD_INCOMING_SECRET')
 
 intents = discord.Intents.default()
+intents.message_content = True  # needed to read message.content, even for DMs
 # CustomActivity shows the exact text with no "Playing/Watching" prefix —
 # unlike Game/Streaming/Listening/Competing, which are fixed, translated
 # prefixes the client controls.
@@ -39,6 +45,27 @@ client = discord.Client(intents=intents, activity=activity)
 @client.event
 async def on_ready():
     print(f'Conectado ao Gateway como {client.user} (id {client.user.id}).')
+
+
+def _forward_incoming(discord_id, content):
+    try:
+        requests.post(
+            f'{BACKEND_URL}/api/discord/incoming/',
+            json={'secret': INCOMING_SECRET, 'discord_id': discord_id, 'content': content},
+            timeout=10,
+        )
+    except requests.RequestException:
+        pass  # best-effort — a backend hiccup shouldn't affect the bot itself
+
+
+@client.event
+async def on_message(message):
+    if message.author.bot or message.guild is not None:
+        return  # only forward DMs from real people, not server messages
+    if not BACKEND_URL or not INCOMING_SECRET:
+        return
+    # requests is blocking — offload so it doesn't stall the event loop.
+    await asyncio.to_thread(_forward_incoming, str(message.author.id), message.content)
 
 
 def run_bot():

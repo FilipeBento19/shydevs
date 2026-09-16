@@ -1,7 +1,7 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 
-from .models import Activity, Attachment, Comment, Person, Project, Role, Subtask, Task
+from .models import Activity, Attachment, Comment, DiscordMessage, Person, Project, Role, Subtask, Task
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -9,6 +9,14 @@ class ProjectSerializer(serializers.ModelSerializer):
         model = Project
         fields = ['id', 'name', 'created_at']
         read_only_fields = ['created_at']
+
+
+class DiscordMessageSerializer(serializers.ModelSerializer):
+    person_name = serializers.CharField(source='person.name', read_only=True, default=None)
+
+    class Meta:
+        model = DiscordMessage
+        fields = ['id', 'person', 'person_name', 'discord_id', 'direction', 'source', 'content', 'created_at']
 
 
 class PersonSerializer(serializers.ModelSerializer):
