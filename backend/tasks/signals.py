@@ -1,5 +1,6 @@
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from . import discord
 from .models import Activity, Attachment, Status, Subtask, Task
@@ -20,8 +21,15 @@ def stash_previous_task(sender, instance, **kwargs):
         return
     previous = Task.objects.select_related('assignee').filter(pk=instance.pk).first()
     instance._previous = previous
-    if previous and previous.due_date != instance.due_date:
+    if not previous:
+        return
+    if previous.due_date != instance.due_date:
         instance.overdue_notified = False
+        instance.due_soon_notified = False
+    if previous.status != instance.status:
+        instance.status_changed_at = timezone.now()
+        instance.pending_reminder_sent = False
+        instance.in_progress_reminder_sent = False
 
 
 @receiver(post_save, sender=Task)

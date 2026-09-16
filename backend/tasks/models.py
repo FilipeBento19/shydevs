@@ -2,6 +2,7 @@ import secrets
 
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
+from django.utils import timezone
 
 
 class Project(models.Model):
@@ -55,8 +56,12 @@ class Person(models.Model):
     photo = models.ImageField(upload_to='avatars/', blank=True, null=True)
     is_admin = models.BooleanField(default=False)
     # Discord's numeric user ID (not a username) — set by an admin on the
-    # Team screen, used to @mention this person in webhook notifications.
+    # Team screen, used to @mention this person in webhook notifications
+    # and to DM them directly.
     discord_id = models.CharField(max_length=32, blank=True)
+    # Set by send_discord_reminders after DMing a workload digest, so the
+    # every-2-days cadence is tracked per person.
+    last_digest_sent_at = models.DateTimeField(null=True, blank=True)
 
     # Minimal shape expected by DRF permission checks (IsAuthenticated etc.)
     is_authenticated = True
@@ -105,6 +110,15 @@ class Task(models.Model):
     # the task's current due_date, so it doesn't re-notify every run; reset
     # whenever due_date changes (see signals.stash_previous_task).
     overdue_notified = models.BooleanField(default=False)
+    # Set by send_discord_reminders once it's DM'd a "due soon" nudge for the
+    # task's current due_date; reset whenever due_date changes.
+    due_soon_notified = models.BooleanField(default=False)
+    # When `status` last changed (defaults to creation time). Drives the
+    # "stuck in this status too long" DM reminders below; reset whenever
+    # status actually changes (see signals.stash_previous_task).
+    status_changed_at = models.DateTimeField(default=timezone.now)
+    pending_reminder_sent = models.BooleanField(default=False)
+    in_progress_reminder_sent = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-created_at']

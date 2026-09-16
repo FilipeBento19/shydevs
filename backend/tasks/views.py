@@ -754,10 +754,11 @@ class BootstrapAdminView(APIView):
 
 
 class CheckOverdueView(APIView):
-    """Triggers the notify_overdue management command over HTTP, so a free
+    """Triggers the periodic Discord maintenance commands over HTTP, so a free
     external scheduler (cron-job.org, GitHub Actions, UptimeRobot, etc.) can
     ping it periodically without needing Render's paid Cron Jobs. Disabled
-    unless CRON_SECRET is set in the environment; requires that exact secret."""
+    unless CRON_SECRET is set in the environment; requires that exact secret.
+    Safe to call as often as hourly — every command it runs is idempotent."""
 
     permission_classes = [AllowAny]
 
@@ -772,4 +773,5 @@ class CheckOverdueView(APIView):
 
         out = StringIO()
         call_command('notify_overdue', stdout=out)
+        call_command('send_discord_reminders', stdout=out)
         return Response({'detail': out.getvalue().strip()})

@@ -166,6 +166,62 @@ def build_container(activity, mention_line=None, banner_filename=None):
     }
 
 
+def build_reminder_container(heading, lines, footer_note):
+    """A slightly fancier Components V2 card for the DM-only reminder nudges
+    below (nothing goes to the channel for these) — a markdown heading up
+    top instead of a plain title line, since it's the only thing standing
+    in for a header image here."""
+    children = [_text(f'## {heading}'[:4000])]
+    if lines:
+        children.append(_text('\n'.join(lines)[:4000]))
+    children.append({'type': SEPARATOR, 'divider': True, 'spacing': 1})
+    children.append(_text(f'-# {footer_note}'))
+    return {'type': CONTAINER, 'components': children}
+
+
+def build_task_reminder_container(heading, task, message, footer_note='Lembrete automático'):
+    url = _task_url(task)
+    task_line = f'**Tarefa:** {task.code} · {task.title}'
+    if url:
+        task_line = f'**Tarefa:** [{task.code} · {task.title}]({url})'
+    lines = [task_line]
+    if task.due_date:
+        lines.append(f'**Prazo:** {task.due_date.strftime("%d/%m")}')
+    lines.append('')
+    lines.append(message)
+    return build_reminder_container(heading, lines, footer_note)
+
+
+def build_digest_container(stats):
+    lines = [
+        f'**Tarefas abertas:** {stats["open"]}',
+        f'**Em andamento:** {stats["in_progress"]}',
+        f'**Atrasadas:** {stats["overdue"]}',
+        '',
+        'Priorize as atrasadas primeiro.' if stats['overdue'] else 'Nada atrasado no momento — bom trabalho.',
+    ]
+    return build_reminder_container('Seu resumo de tarefas', lines, 'Resumo automático · a cada 2 dias')
+
+
+def send_task_reminder_dm(task, heading, message, footer_note='Lembrete automático'):
+    if not (task.assignee_id and (task.assignee.discord_id or '').strip()):
+        return
+    if not os.environ.get('DISCORD_BOT_TOKEN'):
+        return
+    payload = {
+        'flags': IS_COMPONENTS_V2,
+        'components': [build_task_reminder_container(heading, task, message, footer_note)],
+    }
+    threading.Thread(target=_send_dm, args=(task.assignee.discord_id.strip(), payload, None), daemon=True).start()
+
+
+def send_digest_dm(person, stats):
+    if not ((person.discord_id or '').strip() and os.environ.get('DISCORD_BOT_TOKEN')):
+        return
+    payload = {'flags': IS_COMPONENTS_V2, 'components': [build_digest_container(stats)]}
+    threading.Thread(target=_send_dm, args=(person.discord_id.strip(), payload, None), daemon=True).start()
+
+
 def _post_webhook(webhook_url, payload, banner_path=None):
     try:
         # Discord's incoming-webhook endpoint silently rejects a Components V2
