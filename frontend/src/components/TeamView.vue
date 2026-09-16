@@ -95,7 +95,7 @@ async function updatePersonRoles(person, newRoles) {
   }
 }
 
-// ---- Discord ID (used to @mention this person in webhook notifications) ----
+// ---- Discord ID (manual value used by webhook mentions; it does not verify DMs) ----
 const discordDrafts = reactive({})
 function discordDraft(person) {
   if (discordDrafts[person.id] === undefined) discordDrafts[person.id] = person.discord_id || ''
@@ -120,7 +120,7 @@ async function saveDiscordId(person) {
 
 // ---- send a Discord DM to selected people ----
 const selectedDiscordIds = ref([])
-const discordRecipientOptions = computed(() => people.value.filter((p) => p.discord_id).map((p) => ({ value: p.id, label: p.name })))
+const discordRecipientOptions = computed(() => people.value.filter((p) => p.discord_verified).map((p) => ({ value: p.id, label: p.name })))
 const discordMessageDraft = ref('')
 const discordTextareaEl = ref(null)
 const sendingDiscordMessage = ref(false)
@@ -262,6 +262,8 @@ async function removePerson(person) {
               <div style="font-size:12.5px; font-weight:700; color:#f5f4fb; display:flex; align-items:center; gap:6px;">
                 {{ p.name }}
                 <span v-if="p.is_admin" style="font-size:9.5px; font-weight:700; letter-spacing:.04em; color:#b3aaff; background:rgba(124,111,255,.16); border-radius:999px; padding:2px 7px;">ADMIN</span>
+                <span v-if="p.discord_verified" style="font-size:9px; font-weight:800; letter-spacing:.03em; color:#72dca7; background:rgba(63,207,142,.12); border:1px solid rgba(63,207,142,.22); border-radius:999px; padding:2px 7px;">DISCORD VERIFICADO</span>
+                <span v-else style="font-size:9px; font-weight:800; letter-spacing:.03em; color:#ffc26b; background:rgba(255,194,107,.1); border:1px solid rgba(255,194,107,.22); border-radius:999px; padding:2px 7px;">DISCORD NÃO VERIFICADO</span>
               </div>
               <div style="width:220px; margin-top:3px;">
                 <MultiRoleSelect :model-value="p.roles || []" :options="roleOptions" width="100%" label="Cargos" @update:model-value="(v) => updatePersonRoles(p, v)" />
@@ -271,7 +273,7 @@ async function removePerson(person) {
                 <label :for="`discord-id-${p.id}`" class="sr-only">Discord ID de {{ p.name }}</label>
                 <input :id="`discord-id-${p.id}`" :value="discordDraft(p)" @input="discordDrafts[p.id] = $event.target.value"
                   @blur="saveDiscordId(p)" @keyup.enter="$event.target.blur()"
-                  placeholder="Discord ID (para @menção)" inputmode="numeric"
+                  placeholder="Discord ID para menções" inputmode="numeric"
                   style="flex:1; min-width:0; box-sizing:border-box; border:1px solid #22222f; background:#0e0e14; border-radius:6px; padding:5px 8px; font-size:11px; color:#c7c5dc; outline:none;" />
                 <span v-if="savingDiscordId === p.id" class="btn-spinner" aria-hidden="true" style="flex:none;"></span>
               </div>
@@ -310,7 +312,8 @@ async function removePerson(person) {
           </div>
           <div>
             <label for="team-discord-id" style="display:block; font-size:11.5px; font-weight:700; color:#c7c5dc; margin-bottom:5px;">Discord ID (opcional)</label>
-            <input id="team-discord-id" v-model="form.discord_id" inputmode="numeric" placeholder="Para @mencionar nas notificações" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none;" />
+            <input id="team-discord-id" v-model="form.discord_id" inputmode="numeric" placeholder="Usado nas menções do webhook" style="width:100%; box-sizing:border-box; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none;" />
+            <div style="margin-top:5px; color:#65637a; font-size:9.5px; line-height:1.4;">Cadastrar o ID permite menções, mas não verifica as DMs.</div>
           </div>
           <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#c7c5dc;">
             <Checkbox :model-value="form.is_admin" @update:model-value="form.is_admin = $event" aria-label="Tornar administrador" />
@@ -330,7 +333,7 @@ async function removePerson(person) {
 
         <div style="margin-bottom:10px;">
           <MultiRoleSelect v-model="selectedDiscordIds" :options="discordRecipientOptions" width="100%"
-            label="Destinatários" empty-label="Ninguém selecionado" empty-options-label="Ninguém tem Discord ID cadastrado." />
+            label="Destinatários" empty-label="Ninguém selecionado" empty-options-label="Ninguém tem o Discord verificado." />
         </div>
 
         <label for="discord-message-text" class="sr-only">Mensagem</label>
@@ -347,6 +350,9 @@ async function removePerson(person) {
         </div>
         <div v-if="discordSendResult?.no_discord_id.length" style="margin-bottom:10px; padding:8px 10px; background:rgba(224,79,95,.08); border:1px solid rgba(224,79,95,.2); border-radius:8px; color:#c7c5dc; font-size:11.5px; font-weight:600;">
           Sem Discord ID: {{ discordSendResult.no_discord_id.join(', ') }}
+        </div>
+        <div v-if="discordSendResult?.unverified?.length" style="margin-bottom:10px; padding:8px 10px; background:rgba(255,194,107,.08); border:1px solid rgba(255,194,107,.22); border-radius:8px; color:#ffc26b; font-size:11.5px; font-weight:600;">
+          Discord não verificado: {{ discordSendResult.unverified.join(', ') }}
         </div>
 
         <button @click="sendDiscordMessage" :disabled="sendingDiscordMessage" style="width:100%; border:none; background:#7c6fff; color:#0a0a10; border-radius:8px; padding:9px 12px; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">

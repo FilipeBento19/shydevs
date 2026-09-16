@@ -24,11 +24,18 @@ class PersonSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     is_admin = serializers.BooleanField(required=False)
     roles = serializers.ListField(child=serializers.CharField(), required=False, write_only=True)
+    discord_verified = serializers.SerializerMethodField()
 
     class Meta:
         model = Person
-        fields = ['id', 'project', 'name', 'roles', 'photo', 'password', 'is_admin', 'discord_id']
-        read_only_fields = ['project']
+        fields = [
+            'id', 'project', 'name', 'roles', 'photo', 'password', 'is_admin',
+            'discord_id', 'discord_verified', 'discord_verified_at',
+        ]
+        read_only_fields = ['project', 'discord_verified_at']
+
+    def get_discord_verified(self, instance):
+        return bool(instance.discord_id and instance.discord_verified_at)
 
     def _resolve_roles(self, names, project):
         qs = Role.objects.filter(project=project, name__in=names)
@@ -56,8 +63,13 @@ class PersonSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         raw_password = validated_data.pop('password', None)
         role_names = validated_data.pop('roles', None)
+        old_discord_id = instance.discord_id
         for k, v in validated_data.items():
             setattr(instance, k, v)
+        if 'discord_id' in validated_data and instance.discord_id != old_discord_id:
+            instance.discord_verified_at = None
+            instance.discord_verification_code = ''
+            instance.discord_verification_expires_at = None
         if raw_password:
             instance.set_password(raw_password)
         instance.save()

@@ -96,6 +96,9 @@ export const api = {
   },
   changePassword: (id, password) =>
     request(`/people/${id}/change-password/`, { method: 'POST', body: JSON.stringify({ password }) }),
+  startDiscordVerification: (id) =>
+    request(`/people/${id}/discord-verification/`, { method: 'POST' }),
+  getDiscordVerification: (id) => request(`/people/${id}/discord-verification/`),
   sendDiscordMessage: (personIds, message) =>
     request('/people/send-discord-message/', { method: 'POST', body: JSON.stringify({ person_ids: personIds, message }) }),
   getDiscordMessages: () => request('/discord-messages/'),

@@ -9,6 +9,7 @@ import { mascotFaceStyle, personAvatarStyle, mascot } from '../mascotFace'
 import { bumpTasks } from '../taskBus'
 import SlidingTabs from './SlidingTabs.vue'
 import LoginModal from './LoginModal.vue'
+import DiscordVerificationModal from './DiscordVerificationModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -115,6 +116,16 @@ async function saveNewProject() {
 // ---- login/account ----
 const loginOpen = ref(false)
 const accountOpen = ref(false)
+const discordVerificationOpen = ref(false)
+
+function openDiscordVerification() {
+  accountOpen.value = false
+  discordVerificationOpen.value = true
+}
+function onDiscordVerified(person) {
+  auth.setPerson({ ...auth.state.person, ...person })
+  bumpTasks()
+}
 
 function logout() {
   auth.logout()
@@ -297,6 +308,10 @@ defineExpose({ mascot })
             <span v-if="canEdit" style="font-size:9px; font-weight:700; letter-spacing:.04em; color:#b3aaff; background:rgba(124,111,255,.16); border-radius:999px; padding:2px 6px;">ADMIN</span>
           </div>
           <div style="font-size:11px; color:#8b899f; padding:0 8px 8px;">{{ (auth.state.person?.roles || []).join(', ') || 'Sem cargo' }}</div>
+          <button role="menuitem" type="button" @click="openDiscordVerification"
+            :style="{ width:'100%', textAlign:'left', display:'flex', alignItems:'center', gap:'8px', fontSize:'12px', color: auth.state.person?.discord_verified ? '#72dca7' : '#ffc26b', padding:'8px', borderRadius:'7px', cursor:'pointer', border:'none', background:'transparent' }">
+            <i :class="`fi ${auth.state.person?.discord_verified ? 'fi-sr-shield-check' : 'fi-sr-paper-plane'}`" aria-hidden="true"></i>{{ auth.state.person?.discord_verified ? 'Discord verificado' : 'Verificar Discord' }}
+          </button>
           <label for="account-photo-input" style="display:flex; align-items:center; gap:8px; font-size:12px; color:#c7c5dc; padding:8px; border-radius:7px; cursor:pointer;">
             <i class="fi fi-sr-user-add" aria-hidden="true"></i>Alterar foto
             <input id="account-photo-input" type="file" accept="image/*" @change="onPhotoChange" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);" />
@@ -326,4 +341,5 @@ defineExpose({ mascot })
   </div>
 
   <LoginModal :open="loginOpen" @close="loginOpen = false" />
+  <DiscordVerificationModal :open="discordVerificationOpen" :person="auth.state.person" @close="discordVerificationOpen = false" @verified="onDiscordVerified" />
 </template>

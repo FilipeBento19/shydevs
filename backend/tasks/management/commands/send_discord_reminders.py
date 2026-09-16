@@ -6,11 +6,12 @@ from django.db.models import Q
 from django.utils import timezone
 
 from tasks import discord as d
-from tasks.models import Person, Status, Task
+from tasks.models import Person, Project, Status, Task
 
 PENDING_AFTER = timedelta(hours=24)
 IN_PROGRESS_AFTER = timedelta(hours=48)
 DIGEST_INTERVAL = timedelta(days=2)
+UNVERIFIED_INTERVAL = timedelta(days=2)
 DIGEST_HOUR_BRASILIA = 8
 BRASILIA = ZoneInfo('America/Sao_Paulo')
 
@@ -23,10 +24,36 @@ class Command(BaseCommand):
         'the 8am Brasilia hour). Safe to run repeatedly, e.g. hourly via a cron pinger.'
     )
 
+    def add_arguments(self, parser):
+        parser.add_argument('--test-unverified-id', help='Send only a test verification reminder to this Discord ID.')
+
     def handle(self, *args, **options):
+        test_id = options.get('test_unverified_id')
+        if test_id:
+            sent = d.send_unverified_webhook([test_id], project_name='ShyDevs', test=True)
+            if not sent:
+                self.stderr.write(self.style.ERROR('Não foi possível enviar o embed de teste.'))
+                return
+            self.stdout.write(self.style.SUCCESS(f'Embed de teste enviado para {test_id}.'))
+            return
+
         now = timezone.now()
         today = now.date()
-        counts = {'pending': 0, 'in_progress': 0, 'due_soon': 0, 'digest': 0}
+        counts = {'pending': 0, 'in_progress': 0, 'due_soon': 0, 'digest': 0, 'unverified': 0}
+
+        projects = Project.objects.filter(
+            Q(last_unverified_discord_reminder_at__isnull=True)
+            | Q(last_unverified_discord_reminder_at__lte=now - UNVERIFIED_INTERVAL)
+        )
+        for project in projects:
+            ids = list(
+                project.people.filter(discord_verified_at__isnull=True)
+                .exclude(discord_id='').values_list('discord_id', flat=True)
+            )
+            if ids and d.send_unverified_webhook(ids, project_name=project.name):
+                project.last_unverified_discord_reminder_at = now
+                project.save(update_fields=['last_unverified_discord_reminder_at'])
+                counts['unverified'] += len(ids)
 
         pending = (
             Task.objects.select_related('assignee')
@@ -98,5 +125,6 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f"Pendente ha muito tempo: {counts['pending']} · Em andamento ha muito tempo: {counts['in_progress']} · "
-            f"Prazo proximo: {counts['due_soon']} · Resumos enviados: {counts['digest']}"
+            f"Prazo proximo: {counts['due_soon']} · Resumos enviados: {counts['digest']} · "
+            f"Não verificados mencionados: {counts['unverified']}"
         ))

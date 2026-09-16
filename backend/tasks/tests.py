@@ -1,12 +1,84 @@
 import tempfile
+import os
+from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from django.utils import timezone
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Activity, Comment, Person, Subtask, Task
+from .models import Activity, Comment, Person, Project, Subtask, Task
+
+
+class DiscordVerificationApiTests(APITestCase):
+    def setUp(self):
+        self.project = Project.objects.create(name='Projeto Discord')
+        self.person = Person.objects.create(project=self.project, name='Clayton')
+        self.admin = Person.objects.create(project=self.project, name='Admin', is_admin=True)
+
+    def test_person_can_verify_discord_by_sending_generated_code(self):
+        self.client.force_authenticate(user=self.person)
+        start = self.client.post(reverse('person-discord-verification', args=[self.person.id]), format='json')
+        self.assertEqual(start.status_code, status.HTTP_200_OK)
+        self.assertTrue(start.data['code'].startswith('SHY-'))
+
+        self.client.force_authenticate(user=None)
+        with patch.dict(os.environ, {'DISCORD_INCOMING_SECRET': 'segredo'}), patch(
+            'tasks.views.discord.send_verification_confirmation_dm', return_value=True,
+        ):
+            incoming = self.client.post(
+                '/api/discord/incoming/',
+                {'secret': 'segredo', 'discord_id': '123456789', 'content': start.data['code']},
+                format='json',
+            )
+
+        self.assertEqual(incoming.status_code, status.HTTP_200_OK)
+        self.person.refresh_from_db()
+        self.assertEqual(self.person.discord_id, '123456789')
+        self.assertIsNotNone(self.person.discord_verified_at)
+        self.assertEqual(self.person.discord_verification_code, '')
+
+    def test_failed_confirmation_does_not_mark_person_as_verified(self):
+        self.client.force_authenticate(user=self.person)
+        start = self.client.post(reverse('person-discord-verification', args=[self.person.id]), format='json')
+        self.client.force_authenticate(user=None)
+        with patch.dict(os.environ, {'DISCORD_INCOMING_SECRET': 'segredo'}), patch(
+            'tasks.views.discord.send_verification_confirmation_dm', return_value=False,
+        ):
+            incoming = self.client.post(
+                '/api/discord/incoming/',
+                {'secret': 'segredo', 'discord_id': '123456789', 'content': start.data['code']},
+                format='json',
+            )
+
+        self.assertEqual(incoming.status_code, status.HTTP_409_CONFLICT)
+        self.person.refresh_from_db()
+        self.assertIsNone(self.person.discord_verified_at)
+
+    def test_admin_cannot_start_verification_for_another_person(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            reverse('person-discord-verification', args=[self.person.id]), format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_manual_discord_id_change_removes_dm_verification(self):
+        self.person.discord_id = '111'
+        self.person.discord_verified_at = timezone.now()
+        self.person.save(update_fields=['discord_id', 'discord_verified_at'])
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.patch(
+            reverse('person-detail', args=[self.person.id]), {'discord_id': '222'}, format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['discord_id'], '222')
+        self.assertFalse(response.data['discord_verified'])
 
 
 class CommentApiTests(APITestCase):

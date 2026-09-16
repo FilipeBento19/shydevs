@@ -1,4 +1,7 @@
 import os
+import secrets
+import string
+from datetime import timedelta
 from io import StringIO
 
 from django.core.management import call_command
@@ -203,9 +206,13 @@ class PersonViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminOrReadOnly]
 
     def get_permissions(self):
-        if self.action in ('photo', 'change_password'):
+        if self.action in ('photo', 'change_password', 'discord_verification'):
             return [IsAuthenticated()]
         return super().get_permissions()
+
+    def _can_verify_discord(self, person):
+        user = self.request.user
+        return bool(user.project_id == person.project_id and user.id == person.id)
 
     def get_queryset(self):
         qs = Person.objects.all().order_by('name')
@@ -301,6 +308,46 @@ class PersonViewSet(viewsets.ModelViewSet):
         )
         return Response({'detail': 'Senha alterada com sucesso.'})
 
+    @action(detail=True, methods=['get', 'post'], url_path='discord-verification')
+    def discord_verification(self, request, pk=None):
+        person = self.get_object()
+        if not self._can_verify_discord(person):
+            return Response(
+                {'detail': 'Cada pessoa precisa verificar a própria conta do Discord.'},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
+
+        if request.method == 'GET':
+            return Response({
+                'verified': bool(person.discord_id and person.discord_verified_at),
+                'discord_id': person.discord_id,
+                'verified_at': person.discord_verified_at,
+                'pending': bool(
+                    person.discord_verification_code
+                    and person.discord_verification_expires_at
+                    and person.discord_verification_expires_at > timezone.now()
+                ),
+                'expires_at': person.discord_verification_expires_at,
+            })
+
+        alphabet = string.ascii_uppercase + string.digits
+        now = timezone.now()
+        for _ in range(8):
+            code = f'SHY-{"".join(secrets.choice(alphabet) for _ in range(6))}'
+            if not Person.objects.filter(
+                discord_verification_code=code,
+                discord_verification_expires_at__gt=now,
+            ).exists():
+                break
+        person.discord_verification_code = code
+        person.discord_verification_expires_at = now + timedelta(minutes=15)
+        person.save(update_fields=['discord_verification_code', 'discord_verification_expires_at'])
+        return Response({
+            'code': code,
+            'expires_at': person.discord_verification_expires_at,
+            'verified': False,
+        })
+
     @action(detail=False, methods=['post'], url_path='send-discord-message')
     def send_discord_message(self, request):
         if not getattr(request.user, 'is_admin', False):
@@ -316,18 +363,21 @@ class PersonViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'O bot do Discord não está configurado.'}, status=400)
 
         people = Person.objects.filter(project=request.user.project, id__in=person_ids)
-        sent, no_discord_id, failed = [], [], []
+        sent, no_discord_id, unverified, failed = [], [], [], []
         for person in people:
             discord_id = (person.discord_id or '').strip()
             if not discord_id:
                 no_discord_id.append(person.name)
+                continue
+            if not person.discord_verified_at:
+                unverified.append(person.name)
                 continue
             if discord.send_plain_dm(discord_id, message, person=person):
                 sent.append(person.name)
             else:
                 failed.append(person.name)
 
-        return Response({'sent': sent, 'no_discord_id': no_discord_id, 'failed': failed})
+        return Response({'sent': sent, 'no_discord_id': no_discord_id, 'unverified': unverified, 'failed': failed})
 
 
 class RoleViewSet(viewsets.ModelViewSet):
@@ -678,6 +728,54 @@ class IncomingDiscordMessageView(APIView):
         content = (request.data.get('content') or '').strip()
         if not discord_id or not content:
             return Response({'detail': 'Informe discord_id e content.'}, status=400)
+
+        verification_code = content.upper()
+        if verification_code.startswith('SHY-'):
+            pending_person = Person.objects.filter(
+                discord_verification_code=verification_code,
+                discord_verification_expires_at__gt=timezone.now(),
+            ).first()
+            if pending_person:
+                already_linked = Person.objects.filter(
+                    discord_id=discord_id,
+                    discord_verified_at__isnull=False,
+                ).exclude(pk=pending_person.pk).exists()
+                if already_linked:
+                    return Response(
+                        {'detail': 'Esta conta do Discord já está verificada em outro perfil.'},
+                        status=http_status.HTTP_409_CONFLICT,
+                    )
+                if not discord.send_verification_confirmation_dm(discord_id, person=pending_person):
+                    DiscordMessage.objects.create(
+                        project=pending_person.project,
+                        person=pending_person,
+                        discord_id=discord_id,
+                        direction=DiscordMessage.Direction.INCOMING,
+                        source=DiscordMessage.Source.DM,
+                        content=content,
+                    )
+                    return Response(
+                        {'detail': 'Recebemos o código, mas o bot não conseguiu responder à DM.'},
+                        status=http_status.HTTP_409_CONFLICT,
+                    )
+
+                pending_person.discord_id = discord_id
+                pending_person.discord_verified_at = timezone.now()
+                pending_person.discord_verification_code = ''
+                pending_person.discord_verification_expires_at = None
+                pending_person.save(update_fields=[
+                    'discord_id', 'discord_verified_at', 'discord_verification_code',
+                    'discord_verification_expires_at',
+                ])
+                DiscordMessage.objects.create(
+                    project=pending_person.project,
+                    person=pending_person,
+                    discord_id=discord_id,
+                    direction=DiscordMessage.Direction.INCOMING,
+                    source=DiscordMessage.Source.DM,
+                    content=content,
+                )
+                return Response({'verified': True, 'person': pending_person.name})
 
         person = Person.objects.filter(discord_id=discord_id).first()
         DiscordMessage.objects.create(

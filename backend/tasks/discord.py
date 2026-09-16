@@ -374,6 +374,108 @@ def send_plain_dm(discord_id, text, person=None):
         return False
 
 
+def send_verification_confirmation_dm(discord_id, person=None):
+    """Confirms the handshake using Discord's modern Components V2 layout."""
+    headers = _bot_headers()
+    if not headers:
+        return False
+    name = person.name if person else 'Usuário ShyDevs'
+    payload = {
+        'flags': IS_COMPONENTS_V2,
+        'components': [{
+            'type': CONTAINER,
+            'accent_color': 0x7C6FFF,
+            'components': [
+                _text('## Discord verificado!'),
+                _text('Sua conta foi conectada ao **ShyDevs** com sucesso.'),
+                {'type': SEPARATOR, 'divider': True, 'spacing': 1},
+                _text(
+                    f'**Conta conectada**\n{name}\n\n'
+                    '**Status**\n🟢 Pronto para receber DMs\n\n'
+                    '**O que muda agora?**\n'
+                    'Você já pode receber avisos, lembretes e mensagens da equipe diretamente por aqui.'
+                ),
+                {'type': SEPARATOR, 'divider': True, 'spacing': 1},
+                _text('-# ShyDevs · organização sem deixar ninguém no escuro'),
+            ],
+        }],
+    }
+    try:
+        channel_id = _open_dm_channel(headers, discord_id)
+        resp = requests.post(
+            f'{BOT_API_BASE}/channels/{channel_id}/messages',
+            headers=headers, json=payload, timeout=10,
+        )
+        resp.raise_for_status()
+        _log_outgoing(person, discord_id, 'admin', 'Discord verificado com sucesso.')
+        return True
+    except requests.RequestException:
+        return False
+
+
+def send_unverified_webhook(discord_ids, project_name='ShyDevs', test=False):
+    """Mentions unverified members using Discord's modern Components V2 card."""
+    webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
+    discord_ids = list(dict.fromkeys(str(value).strip() for value in discord_ids if str(value).strip()))
+    if not webhook_url or not discord_ids:
+        return False
+    mentions = ' '.join(f'<@{discord_id}>' for discord_id in discord_ids)
+    banner_path = BANNERS_DIR / 'discord_unverified.png'
+    banner_filename = banner_path.name if banner_path.is_file() else None
+    card_components = []
+    if banner_filename:
+        card_components.append({
+            'type': MEDIA_GALLERY,
+            'items': [{'media': {'url': f'attachment://{banner_filename}'}}],
+        })
+    card_components.extend([
+        _text('## Verifique seu Discord no ShyDevs'),
+        _text(mentions),
+        _text('Precisamos confirmar que o bot consegue falar com você por DM.'),
+        {'type': SEPARATOR, 'divider': True, 'spacing': 1},
+        _text(
+            '**Como verificar**\n'
+            '1. Entre no site e abra o menu da sua foto.\n'
+            '2. Clique em **Verificar Discord**.\n'
+            '3. Copie o código `SHY-XXXXXX` e envie na DM do bot.\n\n'
+            'Leva menos de um minuto e libera os avisos privados.'
+        ),
+        {'type': SEPARATOR, 'divider': True, 'spacing': 1},
+        _text(
+            '-# Este lembrete aparece a cada 2 dias enquanto a conta não for verificada.\n'
+            f'-# {project_name} · ShyDevs' + (' · mensagem de teste' if test else '')
+        ),
+    ])
+    payload = {
+        'username': 'ShyDevs',
+        'flags': IS_COMPONENTS_V2,
+        'components': [{
+            'type': CONTAINER,
+            'accent_color': 0xFFC26B,
+            'components': card_components,
+        }],
+        'allowed_mentions': {'parse': [], 'users': discord_ids},
+    }
+    if banner_filename:
+        payload['attachments'] = [{'id': 0, 'filename': banner_filename}]
+    try:
+        url = f'{webhook_url}?with_components=true'
+        if banner_filename:
+            with open(banner_path, 'rb') as banner:
+                resp = requests.post(
+                    url,
+                    data={'payload_json': json.dumps(payload)},
+                    files={'files[0]': (banner_filename, banner, 'image/png')},
+                    timeout=15,
+                )
+        else:
+            resp = requests.post(url, json=payload, timeout=10)
+        resp.raise_for_status()
+        return True
+    except requests.RequestException:
+        return False
+
+
 def notify(activity):
     if activity.event_type not in NOTIFY_EVENT_TYPES:
         return

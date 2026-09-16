@@ -11,6 +11,7 @@ class Project(models.Model):
 
     name = models.CharField(max_length=120, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    last_unverified_discord_reminder_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['name']
@@ -59,6 +60,9 @@ class Person(models.Model):
     # Team screen, used to @mention this person in webhook notifications
     # and to DM them directly.
     discord_id = models.CharField(max_length=32, blank=True)
+    discord_verified_at = models.DateTimeField(null=True, blank=True)
+    discord_verification_code = models.CharField(max_length=16, blank=True)
+    discord_verification_expires_at = models.DateTimeField(null=True, blank=True)
     # Set by send_discord_reminders after DMing a workload digest, so the
     # every-2-days cadence is tracked per person.
     last_digest_sent_at = models.DateTimeField(null=True, blank=True)
@@ -256,5 +260,3 @@ class Attachment(models.Model):
 
     def __str__(self):
         return self.caption or self.url or (self.file.name if self.file else f'Anexo #{self.pk}')
-
-
