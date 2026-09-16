@@ -33,17 +33,18 @@ def _banner_path(event_type):
     path = BANNERS_DIR / f'{event_type}.png'
     return path if path.is_file() else None
 
-COLORS = {
-    'task_created': 0x3fcf8e,
-    'task_assigned': 0x7c6fff,
-    'task_status': 0xffc26b,
-    'task_completed': 0x3fcf8e,
-    'task_updated': 0x9a97b8,
-    'checklist': 0xb3aaff,
-    'comment': 0x6fb3ff,
-    'overdue': 0xff4d5e,
+# Checklist toggles/additions are intentionally excluded — teams check items
+# off constantly, and pinging Discord for every single one would flood the
+# channel. They still show up in the app's own Histórico either way.
+NOTIFY_EVENT_TYPES = {
+    'task_created',
+    'task_assigned',
+    'task_status',
+    'task_completed',
+    'task_updated',
+    'comment',
+    'overdue',
 }
-NOTIFY_EVENT_TYPES = set(COLORS)
 # Events worth @mentioning the assignee for — the ones where it's genuinely
 # their move next. Status updates/comments/checklist stay silent pings.
 MENTION_EVENT_TYPES = {'task_created', 'task_assigned', 'overdue'}
