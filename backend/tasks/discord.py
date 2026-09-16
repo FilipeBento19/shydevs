@@ -16,7 +16,9 @@ caller saw no error.
 import json
 import os
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import requests
 from django.conf import settings
@@ -58,6 +60,8 @@ IS_COMPONENTS_V2 = 1 << 15
 # One banner image per event type, named after it — drop a PNG in here to
 # have it show up automatically, no code change needed.
 BANNERS_DIR = Path(settings.BASE_DIR) / 'static' / 'webhook_banners'
+BRASILIA = ZoneInfo('America/Sao_Paulo')
+DEFAULT_FRONTEND_URL = 'https://shydevs.vercel.app'
 
 
 def _banner_path(event_type):
@@ -82,7 +86,7 @@ MENTION_EVENT_TYPES = {'task_created', 'task_assigned', 'overdue'}
 
 
 def _task_url(task):
-    base = (os.environ.get('FRONTEND_URL') or '').rstrip('/')
+    base = (os.environ.get('FRONTEND_URL') or DEFAULT_FRONTEND_URL).rstrip('/')
     return f'{base}/tasks/{task.id}' if base and task else None
 
 
@@ -157,6 +161,15 @@ def _text(content):
     return {'type': TEXT_DISPLAY, 'content': content}
 
 
+def _standard_footer(project_name='Slayer Reborn', moment=None, note=None):
+    moment = (moment or datetime.now(timezone.utc)).astimezone(BRASILIA)
+    site_url = (os.environ.get('FRONTEND_URL') or DEFAULT_FRONTEND_URL).rstrip('/')
+    first_line = f'-# {project_name or "Slayer Reborn"} · {moment.strftime("%d/%m %H:%M")}'
+    if note:
+        first_line += f' · {note}'
+    return f'{first_line}\n-# [Acessar o site]({site_url})'
+
+
 def build_container(activity, mention_line=None, banner_filename=None):
     """A Components V2 Container: a card holding text blocks — the
     Components V2 equivalent of an embed's title + fields."""
@@ -172,7 +185,7 @@ def build_container(activity, mention_line=None, banner_filename=None):
         lines.append(f'**Tarefa:** {task.code} · {task.title}')
     lines.extend(_detail_lines(activity))
 
-    project_name = task.project.name if task and task.project_id else 'ShyDevs'
+    project_name = task.project.name if task and task.project_id else 'Slayer Reborn'
 
     children = []
     if banner_filename:
@@ -186,7 +199,7 @@ def build_container(activity, mention_line=None, banner_filename=None):
     if lines:
         children.append(_text('\n'.join(lines)[:4000]))
     children.append({'type': SEPARATOR, 'divider': True, 'spacing': 1})
-    children.append(_text(f'-# {project_name} · {activity.created_at.strftime("%d/%m %H:%M")}'))
+    children.append(_text(_standard_footer(project_name, activity.created_at)))
 
     return {
         'type': CONTAINER,
@@ -194,7 +207,7 @@ def build_container(activity, mention_line=None, banner_filename=None):
     }
 
 
-def build_reminder_container(heading, lines, footer_note):
+def build_reminder_container(heading, lines, footer_note, project_name='Slayer Reborn'):
     """A slightly fancier Components V2 card for the DM-only reminder nudges
     below (nothing goes to the channel for these) — a markdown heading up
     top instead of a plain title line, since it's the only thing standing
@@ -203,7 +216,7 @@ def build_reminder_container(heading, lines, footer_note):
     if lines:
         children.append(_text('\n'.join(lines)[:4000]))
     children.append({'type': SEPARATOR, 'divider': True, 'spacing': 1})
-    children.append(_text(f'-# {footer_note}'))
+    children.append(_text(_standard_footer(project_name, note=footer_note)))
     return {'type': CONTAINER, 'components': children}
 
 
@@ -217,10 +230,11 @@ def build_task_reminder_container(heading, task, message, footer_note='Lembrete 
         lines.append(f'**Prazo:** {task.due_date.strftime("%d/%m")}')
     lines.append('')
     lines.append(message)
-    return build_reminder_container(heading, lines, footer_note)
+    project_name = task.project.name if task.project_id else 'Slayer Reborn'
+    return build_reminder_container(heading, lines, footer_note, project_name)
 
 
-def build_digest_container(name, stats):
+def build_digest_container(name, stats, project_name='Slayer Reborn'):
     lines = [
         f'Oi, {name}! Aqui está o seu resumo:',
         '',
@@ -230,7 +244,7 @@ def build_digest_container(name, stats):
         '',
         'Priorize as atrasadas primeiro.' if stats['overdue'] else 'Nada atrasado no momento — bom trabalho.',
     ]
-    return build_reminder_container('Seu resumo de tarefas', lines, 'Resumo automático · a cada 2 dias')
+    return build_reminder_container('Seu resumo de tarefas', lines, 'Resumo automático · a cada 2 dias', project_name)
 
 
 def _log_outgoing(person, discord_id, source, content):
@@ -269,7 +283,10 @@ def send_digest_dm(person, stats):
     if not ((person.discord_id or '').strip() and os.environ.get('DISCORD_BOT_TOKEN')):
         return
     discord_id = person.discord_id.strip()
-    payload = {'flags': IS_COMPONENTS_V2, 'components': [build_digest_container(person.name, stats)]}
+    payload = {
+        'flags': IS_COMPONENTS_V2,
+        'components': [build_digest_container(person.name, stats, person.project.name)],
+    }
     _spawn(_send_dm, (discord_id, payload, None))
     content = f'Abertas: {stats["open"]} · Em andamento: {stats["in_progress"]} · Atrasadas: {stats["overdue"]}'
     _log_outgoing(person, discord_id, 'digest', content)
@@ -380,6 +397,7 @@ def send_verification_confirmation_dm(discord_id, person=None):
     if not headers:
         return False
     name = person.name if person else 'Usuário ShyDevs'
+    project_name = person.project.name if person and person.project_id else 'Slayer Reborn'
     payload = {
         'flags': IS_COMPONENTS_V2,
         'components': [{
@@ -396,7 +414,7 @@ def send_verification_confirmation_dm(discord_id, person=None):
                     'Você já pode receber avisos, lembretes e mensagens da equipe diretamente por aqui.'
                 ),
                 {'type': SEPARATOR, 'divider': True, 'spacing': 1},
-                _text('-# ShyDevs · organização sem deixar ninguém no escuro'),
+                _text(_standard_footer(project_name)),
             ],
         }],
     }
@@ -429,7 +447,7 @@ def send_unverified_webhook(discord_ids, project_name='ShyDevs', test=False):
             'items': [{'media': {'url': f'attachment://{banner_filename}'}}],
         })
     card_components.extend([
-        _text('## Verifique seu Discord no ShyDevs'),
+        _text('## Verifique no site da ShyDevs'),
         _text(mentions),
         _text('Precisamos confirmar que o bot consegue falar com você por DM.'),
         {'type': SEPARATOR, 'divider': True, 'spacing': 1},
@@ -441,17 +459,16 @@ def send_unverified_webhook(discord_ids, project_name='ShyDevs', test=False):
             'Leva menos de um minuto e libera os avisos privados.'
         ),
         {'type': SEPARATOR, 'divider': True, 'spacing': 1},
-        _text(
-            '-# Este lembrete aparece a cada 2 dias enquanto a conta não for verificada.\n'
-            f'-# {project_name} · ShyDevs' + (' · mensagem de teste' if test else '')
-        ),
+        _text(_standard_footer(
+            project_name,
+            note='Lembrete a cada 2 dias' + (' · mensagem de teste' if test else ''),
+        )),
     ])
     payload = {
         'username': 'ShyDevs',
         'flags': IS_COMPONENTS_V2,
         'components': [{
             'type': CONTAINER,
-            'accent_color': 0xFFC26B,
             'components': card_components,
         }],
         'allowed_mentions': {'parse': [], 'users': discord_ids},
