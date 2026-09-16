@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, time, timedelta
 from zoneinfo import ZoneInfo
 
 from django.core.management.base import BaseCommand
@@ -11,9 +11,20 @@ from tasks.models import Person, Project, Status, Task
 PENDING_AFTER = timedelta(hours=24)
 IN_PROGRESS_AFTER = timedelta(hours=48)
 DIGEST_INTERVAL = timedelta(days=2)
-UNVERIFIED_INTERVAL = timedelta(days=2)
+UNVERIFIED_START_DATE = date(2026, 9, 16)
+UNVERIFIED_SEND_TIME = time(18, 57)
 DIGEST_HOUR_BRASILIA = 8
 BRASILIA = ZoneInfo('America/Sao_Paulo')
+
+
+def unverified_reminder_is_due(now):
+    local_now = now.astimezone(BRASILIA)
+    days_since_start = (local_now.date() - UNVERIFIED_START_DATE).days
+    return (
+        days_since_start >= 0
+        and days_since_start % 2 == 0
+        and local_now.time().replace(tzinfo=None) >= UNVERIFIED_SEND_TIME
+    )
 
 
 class Command(BaseCommand):
@@ -41,19 +52,20 @@ class Command(BaseCommand):
         today = now.date()
         counts = {'pending': 0, 'in_progress': 0, 'due_soon': 0, 'digest': 0, 'unverified': 0}
 
-        projects = Project.objects.filter(
-            Q(last_unverified_discord_reminder_at__isnull=True)
-            | Q(last_unverified_discord_reminder_at__lte=now - UNVERIFIED_INTERVAL)
-        )
-        for project in projects:
-            ids = list(
-                project.people.filter(discord_verified_at__isnull=True)
-                .exclude(discord_id='').values_list('discord_id', flat=True)
-            )
-            if ids and d.send_unverified_webhook(ids, project_name=project.name):
-                project.last_unverified_discord_reminder_at = now
-                project.save(update_fields=['last_unverified_discord_reminder_at'])
-                counts['unverified'] += len(ids)
+        if unverified_reminder_is_due(now):
+            local_today = now.astimezone(BRASILIA).date()
+            for project in Project.objects.all():
+                last_sent = project.last_unverified_discord_reminder_at
+                if last_sent and (local_today - last_sent.astimezone(BRASILIA).date()).days < 2:
+                    continue
+                ids = list(
+                    project.people.filter(discord_verified_at__isnull=True)
+                    .exclude(discord_id='').values_list('discord_id', flat=True)
+                )
+                if ids and d.send_unverified_webhook(ids, project_name=project.name):
+                    project.last_unverified_discord_reminder_at = now
+                    project.save(update_fields=['last_unverified_discord_reminder_at'])
+                    counts['unverified'] += len(ids)
 
         pending = (
             Task.objects.select_related('assignee')
