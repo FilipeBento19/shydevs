@@ -339,9 +339,14 @@ async function removePerson(person) {
           style="width:100%; box-sizing:border-box; resize:none; overflow:hidden; min-height:38px; max-height:240px; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none; margin-bottom:10px; font-family:inherit;"></textarea>
 
         <div v-if="discordMessageError" style="margin-bottom:10px; padding:8px 10px; background:rgba(224,79,95,.14); border:1px solid rgba(224,79,95,.35); border-radius:8px; color:#ff8f98; font-size:11.5px; font-weight:600;">{{ discordMessageError }}</div>
-        <div v-if="discordSendResult" style="margin-bottom:10px; padding:8px 10px; background:rgba(63,207,142,.12); border:1px solid rgba(63,207,142,.3); border-radius:8px; font-size:11.5px; font-weight:600;">
-          <div v-if="discordSendResult.sent.length" style="color:#8fe3bd;">Enviado pra: {{ discordSendResult.sent.join(', ') }}</div>
-          <div v-if="discordSendResult.failed.length" style="color:#ff8f98;">Falhou pra: {{ discordSendResult.failed.join(', ') }}</div>
+        <div v-if="discordSendResult?.sent.length" style="margin-bottom:8px; padding:8px 10px; background:rgba(63,207,142,.12); border:1px solid rgba(63,207,142,.3); border-radius:8px; color:#8fe3bd; font-size:11.5px; font-weight:600;">
+          Enviado pra: {{ discordSendResult.sent.join(', ') }}
+        </div>
+        <div v-if="discordSendResult?.failed.length" style="margin-bottom:8px; padding:8px 10px; background:rgba(224,79,95,.14); border:1px solid rgba(224,79,95,.35); border-radius:8px; color:#ff8f98; font-size:11.5px; font-weight:600;">
+          Falhou pra: {{ discordSendResult.failed.join(', ') }}
+        </div>
+        <div v-if="discordSendResult?.no_discord_id.length" style="margin-bottom:10px; padding:8px 10px; background:rgba(224,79,95,.08); border:1px solid rgba(224,79,95,.2); border-radius:8px; color:#c7c5dc; font-size:11.5px; font-weight:600;">
+          Sem Discord ID: {{ discordSendResult.no_discord_id.join(', ') }}
         </div>
 
         <button @click="sendDiscordMessage" :disabled="sendingDiscordMessage" style="width:100%; border:none; background:#7c6fff; color:#0a0a10; border-radius:8px; padding:9px 12px; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
