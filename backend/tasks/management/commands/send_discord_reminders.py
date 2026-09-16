@@ -89,6 +89,10 @@ class Command(BaseCommand):
                 person.save(update_fields=['last_digest_sent_at'])
                 counts['digest'] += 1
 
+        # Every send above happens on a background thread; a short-lived
+        # `manage.py` process would otherwise exit and kill them mid-request.
+        d.flush()
+
         self.stdout.write(self.style.SUCCESS(
             f"Pendente ha muito tempo: {counts['pending']} · Em andamento ha muito tempo: {counts['in_progress']} · "
             f"Prazo proximo: {counts['due_soon']} · Resumos enviados: {counts['digest']}"

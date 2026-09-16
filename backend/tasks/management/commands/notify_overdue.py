@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from tasks import discord as d
 from tasks.models import Activity, Status, Task
 
 
@@ -34,5 +35,10 @@ class Command(BaseCommand):
             task.overdue_notified = True
             task.save(update_fields=['overdue_notified'])
             count += 1
+
+        # The Activity save above triggers Discord notifications on a
+        # background thread (see signals.py); a short-lived `manage.py`
+        # process would otherwise exit and kill them mid-request.
+        d.flush()
 
         self.stdout.write(self.style.SUCCESS(f'{count} tarefa(s) marcada(s) como atrasada(s).'))
