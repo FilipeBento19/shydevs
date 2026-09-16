@@ -36,7 +36,7 @@ the backend's deploy and vice versa:
 1. Render dashboard → **New → Web Service** → pick this repo again
 2. **Root Directory**: `discord-bot`
 3. **Build Command**: `pip install -r requirements.txt`
-4. **Start Command**: `gunicorn app:app --workers 1 --threads 4 --bind 0.0.0.0:$PORT`
+4. **Start Command**: `gunicorn app:app --workers 1 --bind 0.0.0.0:$PORT`
    - `--workers 1` matters: each Gunicorn worker is a separate process, and
      each one would open its own Gateway connection for the same bot if
      there were more than one. One worker is enough — the health check is
@@ -47,6 +47,12 @@ the backend's deploy and vice versa:
      the service live without an explicit bind to it — Gunicorn's default
      port doesn't match, so Render's port scan just times out forever even
      though Gunicorn's own logs claim to be listening.
+   - No `--threads`: the sync worker (Gunicorn's default) keeps this to
+     exactly two threads in the whole process — its own accept loop and
+     the bot's Gateway connection — which turned out to matter. The
+     `gthread` worker's own thread pool sharing the process with the bot's
+     asyncio loop reliably made Render's port scan never find an open port
+     at all, even though Gunicorn's own log claimed to be listening.
 5. **Environment → Add Environment Variable**: `DISCORD_BOT_TOKEN` = the
    same bot token already set on the backend service
 6. Free plan is fine — deploy

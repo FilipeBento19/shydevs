@@ -19,6 +19,7 @@ between the bot's own background imports and the first request), and a
 one-route health check doesn't need routing machinery that can fail like
 that anyway.
 """
+import asyncio
 import json
 import os
 import threading
@@ -44,8 +45,19 @@ def run_bot():
     if not TOKEN:
         print('DISCORD_BOT_TOKEN nao configurado — o bot nao vai conectar.')
         return
-    # Reconnects automatically on drops; blocks this thread forever.
-    client.run(TOKEN)
+    # client.run() is only safe on the main thread — it tries to register
+    # SIGINT/SIGTERM handlers via loop.add_signal_handler, which raises
+    # (or silently misbehaves, depending on platform) anywhere else. This
+    # is client.run()'s own internals minus that signal-handling wrapper,
+    # which is exactly what discord.py's own docs recommend for running a
+    # client outside the main thread. Reconnects automatically on drops;
+    # blocks this thread forever.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(client.start(TOKEN))
+    finally:
+        loop.close()
 
 
 threading.Thread(target=run_bot, daemon=True).start()
