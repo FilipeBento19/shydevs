@@ -24,6 +24,7 @@ import json
 import os
 import threading
 import traceback
+from datetime import datetime, timezone
 
 import discord
 import requests
@@ -42,6 +43,12 @@ intents.message_content = True  # needed to read message.content, even for DMs
 activity = discord.CustomActivity(name='estou de olho em você')
 client = discord.Client(intents=intents, activity=activity)
 gateway_state = {'status': 'starting', 'error': None}
+forward_state = {
+    'status': 'waiting_for_dm',
+    'http_status': None,
+    'backend_detail': None,
+    'last_attempt_at': None,
+}
 bot_thread = None
 bot_thread_lock = threading.Lock()
 
@@ -65,14 +72,32 @@ async def on_resumed():
 
 
 def _forward_incoming(discord_id, content):
+    forward_state['status'] = 'sending'
+    forward_state['http_status'] = None
+    forward_state['backend_detail'] = None
+    forward_state['last_attempt_at'] = datetime.now(timezone.utc).isoformat()
     try:
-        requests.post(
+        response = requests.post(
             f'{BACKEND_URL}/api/discord/incoming/',
             json={'secret': INCOMING_SECRET, 'discord_id': discord_id, 'content': content},
             timeout=10,
         )
-    except requests.RequestException:
-        pass  # best-effort — a backend hiccup shouldn't affect the bot itself
+        forward_state['http_status'] = response.status_code
+        try:
+            detail = response.json().get('detail')
+        except (ValueError, AttributeError):
+            detail = None
+        forward_state['backend_detail'] = str(detail)[:240] if detail else None
+        forward_state['status'] = 'delivered' if response.ok else 'rejected'
+        print(
+            f'DM encaminhada ao backend: HTTP {response.status_code}'
+            + (f' · {detail}' if detail else ''),
+            flush=True,
+        )
+    except requests.RequestException as exc:
+        forward_state['status'] = 'network_error'
+        forward_state['backend_detail'] = f'{type(exc).__name__}: {str(exc)[:200]}'
+        print(f'Falha ao encaminhar DM: {forward_state["backend_detail"]}', flush=True)
 
 
 @client.event
@@ -138,7 +163,9 @@ def app(environ, start_response):
             'bot_token': bool(TOKEN),
             'backend_url': bool(BACKEND_URL),
             'incoming_secret': bool(INCOMING_SECRET),
+            'incoming_endpoint': f'{BACKEND_URL}/api/discord/incoming/' if BACKEND_URL else None,
         },
+        'incoming_forward': forward_state,
     }, ensure_ascii=False).encode('utf-8')
     start_response('200 OK', [('Content-Type', 'application/json'), ('Content-Length', str(len(body)))])
     return [body]
