@@ -10,17 +10,21 @@ place to do.
 
 ## Local test
 
+Gunicorn doesn't run on Windows, so test with Python's built-in WSGI server
+instead — production still uses Gunicorn (see the Render setup below).
+
 ```bash
 cd discord-bot
 python -m venv venv
 venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 set DISCORD_BOT_TOKEN=your-bot-token-here
-python -m flask --app app run
+python -c "from wsgiref.simple_server import make_server; import app; make_server('', 5001, app.app).serve_forever()"
 ```
 
 Watch for `Conectado ao Gateway como ShyDevs Bot (...)` in the console,
-then check the bot shows online in your Discord server.
+check the bot shows online in your Discord server, and confirm
+`http://localhost:5001/health` returns `{"status": "ok", "bot_ready": true}`.
 
 ## Deploying on Render (separate service from the main backend)
 

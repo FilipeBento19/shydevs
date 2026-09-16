@@ -9,14 +9,21 @@ connection open, and the backend's request/response cycle has no place to
 keep one alive.
 
 Deployed as its own Render Web Service (free tier requires something
-listening on an HTTP port, hence the tiny Flask health check) kept awake
+listening on an HTTP port, hence the tiny health check below) kept awake
 by an external pinger like UptimeRobot hitting /health every few minutes.
+
+The health check is a raw WSGI callable rather than Flask/Werkzeug — that
+routing layer hit a `LookupError: unknown encoding: idna` under Gunicorn's
+threaded worker on Render's Python 3.14 image (a codec-registration race
+between the bot's own background imports and the first request), and a
+one-route health check doesn't need routing machinery that can fail like
+that anyway.
 """
+import json
 import os
 import threading
 
 import discord
-from flask import Flask, jsonify
 
 TOKEN = os.environ.get('DISCORD_BOT_TOKEN')
 
@@ -39,10 +46,8 @@ def run_bot():
 
 threading.Thread(target=run_bot, daemon=True).start()
 
-app = Flask(__name__)
 
-
-@app.get('/')
-@app.get('/health')
-def health():
-    return jsonify({'status': 'ok', 'bot_ready': client.is_ready()})
+def app(environ, start_response):
+    body = json.dumps({'status': 'ok', 'bot_ready': client.is_ready()}).encode('utf-8')
+    start_response('200 OK', [('Content-Type', 'application/json'), ('Content-Length', str(len(body)))])
+    return [body]
