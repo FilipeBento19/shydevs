@@ -192,8 +192,10 @@ def build_task_reminder_container(heading, task, message, footer_note='Lembrete 
     return build_reminder_container(heading, lines, footer_note)
 
 
-def build_digest_container(stats):
+def build_digest_container(name, stats):
     lines = [
+        f'Oi, {name}! Aqui está o seu resumo:',
+        '',
         f'**Tarefas abertas:** {stats["open"]}',
         f'**Em andamento:** {stats["in_progress"]}',
         f'**Atrasadas:** {stats["overdue"]}',
@@ -218,7 +220,7 @@ def send_task_reminder_dm(task, heading, message, footer_note='Lembrete automát
 def send_digest_dm(person, stats):
     if not ((person.discord_id or '').strip() and os.environ.get('DISCORD_BOT_TOKEN')):
         return
-    payload = {'flags': IS_COMPONENTS_V2, 'components': [build_digest_container(stats)]}
+    payload = {'flags': IS_COMPONENTS_V2, 'components': [build_digest_container(person.name, stats)]}
     threading.Thread(target=_send_dm, args=(person.discord_id.strip(), payload, None), daemon=True).start()
 
 
