@@ -23,6 +23,7 @@ import asyncio
 import json
 import os
 import threading
+import traceback
 
 import discord
 import requests
@@ -40,11 +41,25 @@ intents.message_content = True  # needed to read message.content, even for DMs
 # prefixes the client controls.
 activity = discord.CustomActivity(name='estou de olho em você')
 client = discord.Client(intents=intents, activity=activity)
+gateway_state = {'status': 'starting', 'error': None}
 
 
 @client.event
 async def on_ready():
+    gateway_state['status'] = 'ready'
+    gateway_state['error'] = None
     print(f'Conectado ao Gateway como {client.user} (id {client.user.id}).')
+
+
+@client.event
+async def on_disconnect():
+    gateway_state['status'] = 'disconnected'
+
+
+@client.event
+async def on_resumed():
+    gateway_state['status'] = 'ready'
+    gateway_state['error'] = None
 
 
 def _forward_incoming(discord_id, content):
@@ -70,6 +85,8 @@ async def on_message(message):
 
 def run_bot():
     if not TOKEN:
+        gateway_state['status'] = 'configuration_error'
+        gateway_state['error'] = 'DISCORD_BOT_TOKEN não configurado.'
         print('DISCORD_BOT_TOKEN nao configurado — o bot nao vai conectar.')
         return
     # client.run() is only safe on the main thread — it tries to register
@@ -83,6 +100,10 @@ def run_bot():
     asyncio.set_event_loop(loop)
     try:
         loop.run_until_complete(client.start(TOKEN))
+    except Exception as exc:
+        gateway_state['status'] = 'failed'
+        gateway_state['error'] = f'{type(exc).__name__}: {str(exc)[:240]}'
+        traceback.print_exc()
     finally:
         loop.close()
 
@@ -91,6 +112,16 @@ threading.Thread(target=run_bot, daemon=True).start()
 
 
 def app(environ, start_response):
-    body = json.dumps({'status': 'ok', 'bot_ready': client.is_ready()}).encode('utf-8')
+    body = json.dumps({
+        'status': 'ok',
+        'bot_ready': client.is_ready(),
+        'gateway_status': gateway_state['status'],
+        'gateway_error': gateway_state['error'],
+        'configuration': {
+            'bot_token': bool(TOKEN),
+            'backend_url': bool(BACKEND_URL),
+            'incoming_secret': bool(INCOMING_SECRET),
+        },
+    }, ensure_ascii=False).encode('utf-8')
     start_response('200 OK', [('Content-Type', 'application/json'), ('Content-Length', str(len(body)))])
     return [body]
