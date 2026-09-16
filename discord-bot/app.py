@@ -42,6 +42,8 @@ intents.message_content = True  # needed to read message.content, even for DMs
 activity = discord.CustomActivity(name='estou de olho em você')
 client = discord.Client(intents=intents, activity=activity)
 gateway_state = {'status': 'starting', 'error': None}
+bot_thread = None
+bot_thread_lock = threading.Lock()
 
 
 @client.event
@@ -108,10 +110,25 @@ def run_bot():
         loop.close()
 
 
-threading.Thread(target=run_bot, daemon=True).start()
+def ensure_bot_thread():
+    """Start the Gateway inside the Gunicorn worker, never in its master.
+
+    Import-time threads can be created before Gunicorn finishes its worker
+    lifecycle and wind up attached to the process Render is replacing. The
+    first health request is guaranteed to execute in the serving worker.
+    """
+    global bot_thread
+    with bot_thread_lock:
+        if bot_thread and bot_thread.is_alive():
+            return
+        gateway_state['status'] = 'starting'
+        gateway_state['error'] = None
+        bot_thread = threading.Thread(target=run_bot, daemon=True, name='discord-gateway')
+        bot_thread.start()
 
 
 def app(environ, start_response):
+    ensure_bot_thread()
     body = json.dumps({
         'status': 'ok',
         'bot_ready': client.is_ready(),
