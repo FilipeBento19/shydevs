@@ -3,10 +3,12 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { popEnter, popLeave } from '../motion'
 
 const props = defineProps({
-  modelValue: { type: Array, default: () => [] }, // array of role names
+  modelValue: { type: Array, default: () => [] }, // array of option values
   options: { type: Array, default: () => [] }, // { value, label, icon?, color? }
   width: { type: String, default: 'auto' },
   label: { type: String, default: 'Cargos' },
+  emptyLabel: { type: String, default: 'Nenhum cargo' },
+  emptyOptionsLabel: { type: String, default: 'Nenhum cargo cadastrado.' },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -18,7 +20,7 @@ const panelPos = ref({ top: 0, left: 0, minWidth: 0 })
 
 const selectedOptions = computed(() => props.options.filter((o) => props.modelValue.includes(o.value)))
 const triggerText = computed(() => {
-  if (!selectedOptions.value.length) return 'Nenhum cargo'
+  if (!selectedOptions.value.length) return props.emptyLabel
   return selectedOptions.value.map((o) => o.label).join(', ')
 })
 
@@ -101,7 +103,7 @@ onUnmounted(() => {
             <i v-if="opt.icon" :class="`fi ${opt.icon}`" :style="{ color: opt.color || 'inherit', flex: 'none' }" aria-hidden="true"></i>
             <span style="white-space:nowrap;">{{ opt.label }}</span>
           </div>
-          <div v-if="!options.length" style="padding:10px; font-size:12px; color:#8f8da8;">Nenhum cargo cadastrado.</div>
+          <div v-if="!options.length" style="padding:10px; font-size:12px; color:#8f8da8;">{{ emptyOptionsLabel }}</div>
         </div>
       </Transition>
     </Teleport>

@@ -10,6 +10,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import discord
 from .models import (
     Activity, Attachment, AuthToken, Comment, Person, Priority, Project, Role, Status, Subtask, Task,
 )
@@ -298,6 +299,34 @@ class PersonViewSet(viewsets.ModelViewSet):
             Activity.EventType.TEAM, {'perfil': person.name, 'campo': 'senha', 'conteúdo': 'não registrado'},
         )
         return Response({'detail': 'Senha alterada com sucesso.'})
+
+    @action(detail=False, methods=['post'], url_path='send-discord-message')
+    def send_discord_message(self, request):
+        if not getattr(request.user, 'is_admin', False):
+            return Response({'detail': 'Apenas administradores.'}, status=http_status.HTTP_403_FORBIDDEN)
+
+        message = (request.data.get('message') or '').strip()
+        person_ids = request.data.get('person_ids') or []
+        if not message:
+            return Response({'detail': 'Escreva uma mensagem.'}, status=400)
+        if not person_ids:
+            return Response({'detail': 'Selecione ao menos uma pessoa.'}, status=400)
+        if not os.environ.get('DISCORD_BOT_TOKEN'):
+            return Response({'detail': 'O bot do Discord não está configurado.'}, status=400)
+
+        people = Person.objects.filter(project=request.user.project, id__in=person_ids)
+        sent, no_discord_id, failed = [], [], []
+        for person in people:
+            discord_id = (person.discord_id or '').strip()
+            if not discord_id:
+                no_discord_id.append(person.name)
+                continue
+            if discord.send_plain_dm(discord_id, message):
+                sent.append(person.name)
+            else:
+                failed.append(person.name)
+
+        return Response({'sent': sent, 'no_discord_id': no_discord_id, 'failed': failed})
 
 
 class RoleViewSet(viewsets.ModelViewSet):

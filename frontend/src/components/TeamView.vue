@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '../api'
 import { listEnter, listLeave } from '../motion'
 import { initials, roleIcon } from '../utils'
@@ -115,6 +115,51 @@ async function saveDiscordId(person) {
     discordDrafts[person.id] = person.discord_id || ''
   } finally {
     savingDiscordId.value = null
+  }
+}
+
+// ---- send a Discord DM to selected people ----
+const selectedDiscordIds = ref([])
+const discordRecipientOptions = computed(() => people.value.filter((p) => p.discord_id).map((p) => ({ value: p.id, label: p.name })))
+const discordMessageDraft = ref('')
+const discordTextareaEl = ref(null)
+const sendingDiscordMessage = ref(false)
+const discordMessageError = ref('')
+const discordSendResult = ref(null)
+
+function autoGrowDiscordTextarea() {
+  const el = discordTextareaEl.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
+async function sendDiscordMessage() {
+  discordMessageError.value = ''
+  discordSendResult.value = null
+  const message = discordMessageDraft.value.trim()
+  if (!message) {
+    discordMessageError.value = 'Escreva uma mensagem.'
+    return
+  }
+  if (!selectedDiscordIds.value.length) {
+    discordMessageError.value = 'Selecione ao menos uma pessoa.'
+    return
+  }
+  sendingDiscordMessage.value = true
+  try {
+    const result = await api.sendDiscordMessage(selectedDiscordIds.value, message)
+    discordSendResult.value = result
+    if (result.sent.length) {
+      discordMessageDraft.value = ''
+      selectedDiscordIds.value = []
+      await nextTick()
+      autoGrowDiscordTextarea()
+    }
+  } catch (e) {
+    discordMessageError.value = e.message || 'Não foi possível enviar a mensagem.'
+  } finally {
+    sendingDiscordMessage.value = false
   }
 }
 
@@ -277,6 +322,32 @@ async function removePerson(person) {
             <i v-else class="fi fi-sr-plus-small" aria-hidden="true"></i>{{ submitting ? 'Adicionando…' : 'Adicionar' }}
           </button>
         </div>
+      </div>
+
+      <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">
+        <div style="font-size:12.5px; font-weight:800; color:#f5f4fb; margin-bottom:4px;">Mandar mensagem no Discord</div>
+        <div style="font-size:11px; color:#8b899f; margin-bottom:12px;">O bot manda por DM pra quem você selecionar.</div>
+
+        <div style="margin-bottom:10px;">
+          <MultiRoleSelect v-model="selectedDiscordIds" :options="discordRecipientOptions" width="100%"
+            label="Destinatários" empty-label="Ninguém selecionado" empty-options-label="Ninguém tem Discord ID cadastrado." />
+        </div>
+
+        <label for="discord-message-text" class="sr-only">Mensagem</label>
+        <textarea id="discord-message-text" ref="discordTextareaEl" v-model="discordMessageDraft" rows="1"
+          @input="autoGrowDiscordTextarea" placeholder="Escreva a mensagem…"
+          style="width:100%; box-sizing:border-box; resize:none; overflow:hidden; min-height:38px; max-height:240px; border:1px solid #26263a; background:#0e0e14; border-radius:8px; padding:9px 10px; font-size:12.5px; color:#f5f4fb; outline:none; margin-bottom:10px; font-family:inherit;"></textarea>
+
+        <div v-if="discordMessageError" style="margin-bottom:10px; padding:8px 10px; background:rgba(224,79,95,.14); border:1px solid rgba(224,79,95,.35); border-radius:8px; color:#ff8f98; font-size:11.5px; font-weight:600;">{{ discordMessageError }}</div>
+        <div v-if="discordSendResult" style="margin-bottom:10px; padding:8px 10px; background:rgba(63,207,142,.12); border:1px solid rgba(63,207,142,.3); border-radius:8px; font-size:11.5px; font-weight:600;">
+          <div v-if="discordSendResult.sent.length" style="color:#8fe3bd;">Enviado pra: {{ discordSendResult.sent.join(', ') }}</div>
+          <div v-if="discordSendResult.failed.length" style="color:#ff8f98;">Falhou pra: {{ discordSendResult.failed.join(', ') }}</div>
+        </div>
+
+        <button @click="sendDiscordMessage" :disabled="sendingDiscordMessage" style="width:100%; border:none; background:#7c6fff; color:#0a0a10; border-radius:8px; padding:9px 12px; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+          <span v-if="sendingDiscordMessage" class="btn-spinner" aria-hidden="true"></span>
+          <i v-else class="fi fi-sr-paper-plane" aria-hidden="true"></i>{{ sendingDiscordMessage ? 'Enviando…' : 'Enviar mensagem' }}
+        </button>
       </div>
 
       <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">

@@ -330,6 +330,26 @@ def _send_dm(discord_id, payload, banner_path=None):
         pass  # best-effort — a bot hiccup should never break the app
 
 
+def send_plain_dm(discord_id, text):
+    """Blocking, and returns whether it actually worked — used by the
+    admin's "send a Discord message" feature on the Team screen, where the
+    caller wants per-recipient success/failure to show back in the UI
+    rather than firing and forgetting like the automated notifications."""
+    headers = _bot_headers()
+    if not headers:
+        return False
+    try:
+        channel_id = _open_dm_channel(headers, discord_id)
+        resp = requests.post(
+            f'{BOT_API_BASE}/channels/{channel_id}/messages', headers=headers,
+            json={'content': text, 'allowed_mentions': {'parse': []}}, timeout=10,
+        )
+        resp.raise_for_status()
+        return True
+    except requests.RequestException:
+        return False
+
+
 def notify(activity):
     if activity.event_type not in NOTIFY_EVENT_TYPES:
         return

@@ -96,6 +96,8 @@ export const api = {
   },
   changePassword: (id, password) =>
     request(`/people/${id}/change-password/`, { method: 'POST', body: JSON.stringify({ password }) }),
+  sendDiscordMessage: (personIds, message) =>
+    request('/people/send-discord-message/', { method: 'POST', body: JSON.stringify({ person_ids: personIds, message }) }),
 
   // tasks
   getTasks: (params = {}) => request(`/tasks/${qs({ project: currentProjectId(), ...params })}`),
