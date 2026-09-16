@@ -28,7 +28,11 @@ import discord
 TOKEN = os.environ.get('DISCORD_BOT_TOKEN')
 
 intents = discord.Intents.default()
-client = discord.Client(intents=intents)
+# CustomActivity shows the exact text with no "Playing/Watching" prefix —
+# unlike Game/Streaming/Listening/Competing, which are fixed, translated
+# prefixes the client controls.
+activity = discord.CustomActivity(name='estou de olho em você')
+client = discord.Client(intents=intents, activity=activity)
 
 
 @client.event
