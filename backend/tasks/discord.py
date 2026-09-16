@@ -359,12 +359,7 @@ def notify(activity):
             payload['attachments'] = [{'id': 0, 'filename': banner_filename}]
         _spawn(_post_webhook, (webhook_url, payload, banner_path))
 
-    if discord_id and os.environ.get('DISCORD_BOT_TOKEN'):
-        # No mention needed — it's already a 1:1 DM.
-        dm_payload = {
-            'flags': IS_COMPONENTS_V2,
-            'components': [build_container(activity, None, banner_filename)],
-        }
-        if banner_path:
-            dm_payload['attachments'] = [{'id': 0, 'filename': banner_filename}]
-        _spawn(_send_dm, (discord_id, dm_payload, banner_path))
+    # These 3 events used to also DM a copy of the same card, but that's now
+    # handled by the dedicated DM-only reminders in send_discord_reminders
+    # (stale pending/in-progress, due-soon) — the channel @mention is enough
+    # here, no need to double up.
