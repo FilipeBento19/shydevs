@@ -1,10 +1,13 @@
-"""Posts Activity events to a Discord channel via webhook, using Components V2
-(Discord's newer message-layout API — colored containers, formatted text
-blocks, separators — instead of the classic embed object).
+"""Posts Activity events to Discord — a channel via webhook, and for a
+handful of "it's your move" events, also a personal DM via bot token —
+using Components V2 (Discord's newer message-layout API: colored
+containers, formatted text blocks, separators, image galleries — instead
+of the classic embed object).
 
-No-op if DISCORD_WEBHOOK_URL isn't set, and the actual HTTP call is fired
-from a background thread so a slow/unreachable Discord never delays the API
-response that triggered it.
+Both are no-ops if their respective env var isn't set (DISCORD_WEBHOOK_URL,
+DISCORD_BOT_TOKEN), and every HTTP call is fired from a background thread
+so a slow/unreachable Discord never delays the API response that
+triggered it.
 """
 import json
 import os
@@ -163,11 +166,12 @@ def build_container(activity, mention_line=None, banner_filename=None):
     }
 
 
-def _post(webhook_url, payload, banner_path=None):
+def _post_webhook(webhook_url, payload, banner_path=None):
     try:
         # Discord's incoming-webhook endpoint silently rejects a Components V2
         # payload ("Cannot send an empty message") unless this query param is
-        # present — distinct from the flag on the payload itself.
+        # present — distinct from the flag on the payload itself. Regular bot
+        # channel messages (below) don't need this quirk.
         url = f'{webhook_url}?with_components=true'
         if banner_path:
             with open(banner_path, 'rb') as f:
@@ -183,30 +187,79 @@ def _post(webhook_url, payload, banner_path=None):
         pass  # best-effort — a Discord hiccup should never break the app
 
 
+BOT_API_BASE = 'https://discord.com/api/v10'
+
+
+def _bot_headers():
+    token = os.environ.get('DISCORD_BOT_TOKEN')
+    return {'Authorization': f'Bot {token}'} if token else None
+
+
+def _open_dm_channel(headers, discord_id):
+    resp = requests.post(
+        f'{BOT_API_BASE}/users/@me/channels', headers=headers,
+        json={'recipient_id': discord_id}, timeout=10,
+    )
+    resp.raise_for_status()
+    return resp.json()['id']
+
+
+def _send_dm(discord_id, payload, banner_path=None):
+    headers = _bot_headers()
+    if not headers:
+        return
+    try:
+        channel_id = _open_dm_channel(headers, discord_id)
+        url = f'{BOT_API_BASE}/channels/{channel_id}/messages'
+        if banner_path:
+            with open(banner_path, 'rb') as f:
+                requests.post(
+                    url, headers=headers,
+                    data={'payload_json': json.dumps(payload)},
+                    files={'files[0]': (banner_path.name, f, 'image/png')},
+                    timeout=10,
+                )
+        else:
+            requests.post(url, headers=headers, json=payload, timeout=10)
+    except requests.RequestException:
+        pass  # best-effort — a bot hiccup should never break the app
+
+
 def notify(activity):
-    webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
-    if not webhook_url or activity.event_type not in NOTIFY_EVENT_TYPES:
+    if activity.event_type not in NOTIFY_EVENT_TYPES:
         return
 
     task = activity.task
     discord_id = None
     if activity.event_type in MENTION_EVENT_TYPES and task and task.assignee_id:
-        discord_id = (task.assignee.discord_id or '').strip()
-
-    # Components V2 messages can't use the top-level `content` field, so a
-    # mention that should actually ping goes in its own text block instead —
-    # Discord still parses/notifies mentions found inside component text.
-    mention_line = f'<@{discord_id}>' if discord_id else None
-    allowed_mentions = {'parse': [], 'users': [discord_id]} if discord_id else {'parse': []}
+        discord_id = (task.assignee.discord_id or '').strip() or None
 
     banner_path = _banner_path(activity.event_type)
-    payload = {
-        'username': 'ShyDevs',
-        'flags': IS_COMPONENTS_V2,
-        'components': [build_container(activity, mention_line, banner_path and banner_path.name)],
-        'allowed_mentions': allowed_mentions,
-    }
-    if banner_path:
-        payload['attachments'] = [{'id': 0, 'filename': banner_path.name}]
+    banner_filename = banner_path.name if banner_path else None
 
-    threading.Thread(target=_post, args=(webhook_url, payload, banner_path), daemon=True).start()
+    webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
+    if webhook_url:
+        # Components V2 messages can't use the top-level `content` field, so
+        # a mention that should actually ping goes in its own text block
+        # instead — Discord still parses/notifies mentions found there.
+        mention_line = f'<@{discord_id}>' if discord_id else None
+        allowed_mentions = {'parse': [], 'users': [discord_id]} if discord_id else {'parse': []}
+        payload = {
+            'username': 'ShyDevs',
+            'flags': IS_COMPONENTS_V2,
+            'components': [build_container(activity, mention_line, banner_filename)],
+            'allowed_mentions': allowed_mentions,
+        }
+        if banner_path:
+            payload['attachments'] = [{'id': 0, 'filename': banner_filename}]
+        threading.Thread(target=_post_webhook, args=(webhook_url, payload, banner_path), daemon=True).start()
+
+    if discord_id and os.environ.get('DISCORD_BOT_TOKEN'):
+        # No mention needed — it's already a 1:1 DM.
+        dm_payload = {
+            'flags': IS_COMPONENTS_V2,
+            'components': [build_container(activity, None, banner_filename)],
+        }
+        if banner_path:
+            dm_payload['attachments'] = [{'id': 0, 'filename': banner_filename}]
+        threading.Thread(target=_send_dm, args=(discord_id, dm_payload, banner_path), daemon=True).start()
