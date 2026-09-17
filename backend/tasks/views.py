@@ -947,5 +947,6 @@ class CheckOverdueView(APIView):
 
         out = StringIO()
         call_command('notify_overdue', stdout=out)
-        call_command('send_discord_reminders', stdout=out)
+        force_unverified = request.query_params.get('force_unverified') in {'1', 'true', 'yes'}
+        call_command('send_discord_reminders', force_unverified=force_unverified, stdout=out)
         return Response({'detail': out.getvalue().strip()})
