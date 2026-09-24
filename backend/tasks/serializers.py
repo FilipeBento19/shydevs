@@ -1,7 +1,8 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 
-from .models import Activity, Attachment, Comment, DiscordMessage, Person, Project, Role, Subtask, Task
+from .models import Activity, Attachment, Comment, DiscordMessage, Person, Project, Reference, Role, Subtask, Task
+from .storages import kind_for_name
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -162,6 +163,47 @@ class AttachmentSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class ReferenceSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source='uploaded_by.name', read_only=True, default=None)
+    file_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Reference
+        fields = [
+            'id', 'task', 'group', 'kind', 'file', 'file_name', 'url', 'caption',
+            'uploaded_by', 'uploaded_by_name', 'created_at',
+        ]
+        read_only_fields = ['kind', 'created_at', 'uploaded_by']
+        extra_kwargs = {
+            'file': {'required': False},
+            'url': {'required': False, 'allow_blank': True},
+            'group': {'required': False},
+        }
+
+    def get_file_name(self, obj):
+        if not obj.file:
+            return None
+        return obj.file.name.rsplit('/', 1)[-1]
+
+    def validate_group(self, value):
+        return (value or '').strip() or 'Geral'
+
+    def validate(self, attrs):
+        if not attrs.get('file') and not (attrs.get('url') or '').strip():
+            raise serializers.ValidationError({'url': 'Envie um arquivo ou cole um link.'})
+        return attrs
+
+    @staticmethod
+    def detect_kind(file, url):
+        """image/video/file by extension for uploads; for links, direct media
+        URLs count as image/video (so they get the real viewer) and anything
+        else stays a plain link."""
+        if file:
+            return kind_for_name(file.name)
+        detected = kind_for_name(url or '')
+        return detected if detected in ('image', 'video') else 'link'
+
+
 class TaskSerializer(serializers.ModelSerializer):
     assignee_name = serializers.CharField(source='assignee.name', read_only=True, default=None)
     assignee_photo = serializers.SerializerMethodField()
@@ -170,6 +212,7 @@ class TaskSerializer(serializers.ModelSerializer):
     subtasks_done = serializers.SerializerMethodField()
     subtasks_total = serializers.SerializerMethodField()
     attachments_total = serializers.SerializerMethodField()
+    references_total = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -177,7 +220,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'id', 'project', 'code', 'title', 'description', 'role', 'role_color',
             'assignee', 'assignee_name', 'assignee_photo', 'due_date', 'priority', 'status',
             'checked', 'completion_note', 'created_at', 'subtasks', 'subtasks_done',
-            'subtasks_total', 'attachments_total',
+            'subtasks_total', 'attachments_total', 'references_total',
         ]
         read_only_fields = ['project', 'code', 'created_at']
 
@@ -222,3 +265,6 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_attachments_total(self, obj):
         return len(obj.attachments.all())
+
+    def get_references_total(self, obj):
+        return len(obj.references.all())

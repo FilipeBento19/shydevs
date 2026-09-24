@@ -9,18 +9,19 @@ from django.db.models import Q
 from django.utils import timezone
 from rest_framework import permissions, status as http_status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from . import discord
 from .models import (
-    Activity, Attachment, AuthToken, Comment, DiscordMessage, Person, Priority, Project, Role, Status,
-    Subtask, Task,
+    Activity, Attachment, AuthToken, Comment, DiscordMessage, Person, Priority, Project, Reference, Role,
+    Status, Subtask, Task,
 )
 from .serializers import (
     ActivitySerializer, AttachmentSerializer, CommentSerializer, DiscordMessageSerializer, PersonSerializer,
-    ProjectSerializer, RoleSerializer, SubtaskSerializer, TaskSerializer,
+    ProjectSerializer, ReferenceSerializer, RoleSerializer, SubtaskSerializer, TaskSerializer,
 )
 
 
@@ -456,7 +457,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         return super().partial_update(request, *args, **kwargs)
 
     def get_queryset(self):
-        qs = Task.objects.select_related('assignee').prefetch_related('subtasks', 'attachments').all()
+        qs = Task.objects.select_related('assignee').prefetch_related('subtasks', 'attachments', 'references').all()
         params = self.request.query_params
         user = self.request.user
 
@@ -885,6 +886,40 @@ class AttachmentViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         instance._activity_actor = self.request.user
         instance.delete()
+
+
+class ReferenceViewSet(viewsets.ModelViewSet):
+    """Reference material for a task, organised in named groups. Anyone can
+    read; any logged-in person can add; only the uploader or an admin can
+    delete (same rules as attachments)."""
+
+    serializer_class = ReferenceSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        qs = Reference.objects.select_related('uploaded_by')
+        user = self.request.user
+        if getattr(user, 'is_authenticated', False):
+            qs = qs.filter(task__project_id=user.project_id)
+        else:
+            project_id = project_id_from(self.request)
+            qs = qs.filter(task__project_id=project_id) if project_id else qs.none()
+        task_id = self.request.query_params.get('task')
+        if task_id:
+            qs = qs.filter(task_id=task_id)
+        return qs
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        task = serializer.validated_data['task']
+        if task.project_id != user.project_id:
+            raise PermissionDenied('Essa tarefa é de outro projeto.')
+        serializer.save(
+            kind=ReferenceSerializer.detect_kind(serializer.validated_data.get('file'), serializer.validated_data.get('url')),
+            url=(serializer.validated_data.get('url') or '').strip(),
+            uploaded_by=user,
+        )
 
 
 class BootstrapAdminView(APIView):

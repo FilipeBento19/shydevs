@@ -4,6 +4,8 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
 from django.utils import timezone
 
+from .storages import get_reference_storage
+
 
 class Project(models.Model):
     """A workspace: its own tasks, people and roles. Selected via the
@@ -236,6 +238,36 @@ class DiscordMessage(models.Model):
     def __str__(self):
         who = self.person.name if self.person else (self.discord_id or 'desconhecido')
         return f'{self.direction} · {who}'
+
+
+class Reference(models.Model):
+    """Reference material for a task (concept art, gameplay clips, docs...),
+    organised into named groups like "Skill 1". Similar to an Attachment but
+    accepts links as well as files, and is meant to be looked at, not just
+    downloaded — the frontend has a proper viewer for it."""
+
+    class Kind(models.TextChoices):
+        IMAGE = 'image', 'Imagem'
+        VIDEO = 'video', 'Vídeo'
+        LINK = 'link', 'Link'
+        FILE = 'file', 'Arquivo'
+
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='references')
+    group = models.CharField(max_length=80, default='Geral')
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    file = models.FileField(upload_to='references/', storage=get_reference_storage, blank=True, null=True, max_length=255)
+    url = models.URLField(blank=True, max_length=500)
+    caption = models.CharField(max_length=200, blank=True)
+    uploaded_by = models.ForeignKey(
+        Person, on_delete=models.SET_NULL, null=True, blank=True, related_name='references'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+    def __str__(self):
+        return f'{self.group}: {self.caption or self.url or (self.file.name if self.file else self.pk)}'
 
 
 class Attachment(models.Model):

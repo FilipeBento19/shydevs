@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ActivityViewSet, AttachmentViewSet, BootstrapAdminView, CheckOverdueView, CommentViewSet,
     DiscordMessageViewSet, IncomingDiscordMessageView, LoginView, LogoutView, MeView, PersonViewSet,
-    ProjectViewSet, RoleViewSet, SubtaskViewSet, TaskViewSet,
+    ProjectViewSet, ReferenceViewSet, RoleViewSet, SubtaskViewSet, TaskViewSet,
 )
 
 router = DefaultRouter()
@@ -16,6 +16,7 @@ router.register('subtasks', SubtaskViewSet, basename='subtask')
 router.register('activities', ActivityViewSet, basename='activity')
 router.register('attachments', AttachmentViewSet, basename='attachment')
 router.register('comments', CommentViewSet, basename='comment')
+router.register('references', ReferenceViewSet, basename='reference')
 router.register('discord-messages', DiscordMessageViewSet, basename='discord-message')
 
 urlpatterns = [
