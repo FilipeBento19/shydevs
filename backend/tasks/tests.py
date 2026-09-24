@@ -83,10 +83,11 @@ class DiscordVerificationApiTests(APITestCase):
 
 class CommentApiTests(APITestCase):
     def setUp(self):
-        self.author = Person.objects.create(name='Autor')
-        self.other_person = Person.objects.create(name='Outra pessoa')
-        self.admin = Person.objects.create(name='Admin', is_admin=True)
-        self.task = Task.objects.create(title='Tarefa comentada', role='Scripter')
+        self.project = Project.objects.create(name='Projeto de comentários')
+        self.author = Person.objects.create(project=self.project, name='Autor')
+        self.other_person = Person.objects.create(project=self.project, name='Outra pessoa')
+        self.admin = Person.objects.create(project=self.project, name='Admin', is_admin=True)
+        self.task = Task.objects.create(project=self.project, title='Tarefa comentada', role='Scripter')
         self.list_url = reverse('comment-list')
 
     def test_logged_person_can_create_and_list_comment_for_task(self):
@@ -191,8 +192,9 @@ class AttachmentApiTests(APITestCase):
         self.media_override = override_settings(MEDIA_ROOT=self.media_directory.name)
         self.media_override.enable()
         self.addCleanup(self.media_override.disable)
-        self.person = Person.objects.create(name='Pessoa com arquivo')
-        self.task = Task.objects.create(title='Tarefa com arquivo', role='Scripter')
+        self.project = Project.objects.create(name='Projeto de arquivos')
+        self.person = Person.objects.create(project=self.project, name='Pessoa com arquivo')
+        self.task = Task.objects.create(project=self.project, title='Tarefa com arquivo', role='Scripter')
         self.client.force_authenticate(user=self.person)
 
     def test_upload_accepts_any_file_without_attachment_type(self):
@@ -225,9 +227,10 @@ class AttachmentApiTests(APITestCase):
 
 class ActivityApiTests(APITestCase):
     def setUp(self):
-        self.person = Person.objects.create(name='Pessoa comum')
-        self.admin = Person.objects.create(name='Administrador', is_admin=True)
-        self.task = Task.objects.create(title='Evento testado', role='Scripter', assignee=self.person)
+        self.project = Project.objects.create(name='Projeto de atividades')
+        self.person = Person.objects.create(project=self.project, name='Pessoa comum')
+        self.admin = Person.objects.create(project=self.project, name='Administrador', is_admin=True)
+        self.task = Task.objects.create(project=self.project, title='Evento testado', role='Scripter', assignee=self.person)
         Activity.objects.create(
             task=self.task, actor=self.person, message='Evento restrito',
             event_type=Activity.EventType.TASK_UPDATED,
