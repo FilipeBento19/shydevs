@@ -110,12 +110,17 @@ function attachmentName(attachment) {
 
 <template>
   <div>
-    <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
-      Arquivos anexados
-      <span style="font-weight:500; color:#8b899f; font-size:11px;">{{ attachments.length }}</span>
+    <div style="font-size:12px; font-weight:700; color:#c7c5dc; display:flex; align-items:center; gap:8px;">
+      Entrega do responsável
+      <span style="font-size:9.5px; font-weight:800; letter-spacing:.05em; color:#3fcf8e; background:rgba(63,207,142,.13); border-radius:999px; padding:2px 8px;">ENTREGA</span>
+      <span style="margin-left:auto; font-weight:500; color:#8b899f; font-size:11px;">{{ attachments.length }}</span>
     </div>
+    <p style="margin:4px 0 10px; font-size:11px; line-height:1.5; color:#8b899f;">
+      Para quem está executando a tarefa: anexe aqui o que você produziu (prova de entrega).
+      Imagens e vídeos de apoio que vieram com a demanda ficam na aba <strong style="color:#b3aaff; font-weight:700;">Referências</strong>.
+    </p>
 
-    <div v-if="loading" style="font-size:12px; color:#8f8da8;">Carregando anexos…</div>
+    <div v-if="loading" style="font-size:12px; color:#8f8da8;">Carregando entregas…</div>
 
     <TransitionGroup v-else tag="div" @enter="listEnter" @leave="listLeave" :css="false" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
       <div v-for="(a, i) in attachments" :key="a.id" :data-index="i" style="background:#0e0e14; border:1px solid #22222f; border-radius:10px; padding:10px; display:flex; gap:10px; align-items:flex-start;">
@@ -139,7 +144,7 @@ function attachmentName(attachment) {
         </button>
       </div>
     </TransitionGroup>
-    <div v-if="!loading && !attachments.length" style="font-size:12px; color:#8f8da8; margin-bottom:10px;">Nenhum anexo ainda.</div>
+    <div v-if="!loading && !attachments.length" style="font-size:12px; color:#8f8da8; margin-bottom:10px;">Nenhuma entrega anexada ainda.</div>
 
     <div v-if="canUpload" style="background:#0e0e14; border:1px solid #22222f; border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:8px;">
       <div style="display:flex; align-items:center; gap:10px;">
@@ -157,9 +162,9 @@ function attachmentName(attachment) {
 
       <button @click="submit" :disabled="submitting" type="button" style="border:none; background:#7c6fff; color:#0a0a10; border-radius:8px; padding:8px 12px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
         <span v-if="submitting" class="btn-spinner" aria-hidden="true"></span>
-        <i v-else class="fi fi-sr-cloud-upload-alt" aria-hidden="true"></i>{{ submitting ? 'Enviando…' : 'Enviar anexo' }}
+        <i v-else class="fi fi-sr-cloud-upload-alt" aria-hidden="true"></i>{{ submitting ? 'Enviando…' : 'Anexar entrega' }}
       </button>
     </div>
-    <div v-else style="font-size:11.5px; color:#8f8da8;">Faça login para anexar arquivos.</div>
+    <div v-else style="font-size:11.5px; color:#8f8da8;">Faça login para anexar sua entrega.</div>
   </div>
 </template>

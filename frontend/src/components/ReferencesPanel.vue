@@ -166,6 +166,15 @@ function hideBroken(e) {
 
 <template>
   <div class="refs">
+    <div class="intro">
+      <span class="pill">CONSULTA</span>
+      <p>
+        Material de apoio para <strong>quem vai executar</strong> a tarefa: quem passa a demanda coloca aqui os
+        exemplos, conceitos e links de referência. A <strong>entrega</strong> de quem fez o trabalho não vai aqui —
+        vai na aba <em>Detalhes</em>, em “Entrega do responsável”.
+      </p>
+    </div>
+
     <!-- add form -->
     <section v-if="canUpload" class="refs-form" :class="{ dragging }" aria-label="Adicionar referência"
       @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @drop.prevent="onDrop">
@@ -223,7 +232,7 @@ function hideBroken(e) {
     <div v-else-if="!groups.length" class="empty">
       <i class="fi fi-sr-picture" aria-hidden="true"></i>
       <strong>Nenhuma referência ainda</strong>
-      <span>Reúna imagens, vídeos e links aqui, separados por grupo (por exemplo “Skill 1”).</span>
+      <span>Quem passa a demanda reúne aqui imagens, vídeos e links pra quem vai executar, separados por grupo (por exemplo “Skill 1”).</span>
     </div>
 
     <section v-for="g in groups" :key="g.name" class="group" :aria-label="`Grupo ${g.name}`">
@@ -264,6 +273,11 @@ function hideBroken(e) {
 <style scoped>
 .refs { display: flex; flex-direction: column; gap: 16px; }
 .hint { font-size: 12.5px; color: #8b899f; }
+.intro { display: flex; align-items: flex-start; gap: 10px; padding: 11px 14px; background: rgba(124, 111, 255, .08); border: 1px solid rgba(124, 111, 255, .22); border-radius: 12px; }
+.intro p { margin: 0; font-size: 12px; line-height: 1.55; color: #b8b5d0; }
+.intro strong { color: #f5f4fb; }
+.intro em { font-style: normal; color: #b3aaff; font-weight: 700; }
+.pill { flex: none; margin-top: 1px; font-size: 9.5px; font-weight: 800; letter-spacing: .05em; color: #b3aaff; background: rgba(124, 111, 255, .18); border-radius: 999px; padding: 3px 9px; }
 .err { margin-top: 10px; padding: 9px 12px; background: rgba(224, 79, 95, .14); border: 1px solid rgba(224, 79, 95, .35); border-radius: 9px; color: #ff8f98; font-size: 12px; font-weight: 600; }
 
 .refs-form { background: #14141d; border: 1px solid #22222f; border-radius: 12px; padding: 14px; transition: border-color .15s ease, background-color .15s ease; }
