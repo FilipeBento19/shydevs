@@ -160,3 +160,35 @@ textarea:focus-visible,
     scroll-behavior: auto !important;
   }
 }
+
+/* ---- responsive (phones) ---- */
+@media (max-width: 760px) {
+  .hide-mobile { display: none !important; }
+
+  /* Header: logo / project / actions on the first row, nav tabs on their own
+     scrollable row underneath instead of forcing the whole page wider. */
+  .app-header { gap: 10px !important; padding: 8px 12px !important; }
+  .app-header .app-nav {
+    order: 5; flex: 1 1 100% !important; margin-left: 0 !important;
+    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .app-header .app-nav::-webkit-scrollbar { display: none; }
+  .app-header .app-nav > div { flex-wrap: nowrap !important; }
+}
+
+@media (max-width: 760px) {
+  /* Board table: each row becomes a card — checkbox + title on top, the
+     rest (role, owner, due date, priority, status) wrapping underneath. */
+  .task-table-inner { min-width: 0 !important; }
+  .task-table-head { display: none !important; }
+  .task-row { grid-template-columns: 30px minmax(0, 1fr) !important; gap: 8px 10px !important; align-items: start !important; }
+  .task-row > .tt-meta { display: flex !important; flex-wrap: wrap; align-items: center; gap: 6px 12px; grid-column: 2; }
+}
+
+@media (max-width: 760px) {
+  /* Two-column pages (list + side panel) stack into one column. */
+  .team-grid, .task-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .team-row { flex-wrap: wrap; }
+  .team-row .team-field { width: 100% !important; }
+  .team-row .team-actions { flex: 1 1 100% !important; flex-wrap: wrap; }
+}

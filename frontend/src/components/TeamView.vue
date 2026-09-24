@@ -250,13 +250,13 @@ async function removePerson(person) {
 
 <template>
   <div style="padding:20px 26px 26px;">
-    <div style="display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; align-items:start;">
+    <div class="team-grid" style="display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; align-items:start;">
       <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; overflow:hidden;">
         <div style="padding:14px 16px; border-bottom:1px solid #1f1f2b; font-size:12.5px; font-weight:800; color:#f5f4fb;">Equipe</div>
         <div v-if="loading" style="padding:20px; font-size:12.5px; color:#8b899f;">Carregando…</div>
         <div v-else-if="!people.length" style="padding:20px; font-size:12.5px; color:#8b899f;">Ninguém cadastrado ainda. Adicione a primeira pessoa ao lado.</div>
         <TransitionGroup v-else tag="div" @enter="listEnter" @leave="listLeave" :css="false">
-          <div v-for="(p, i) in people" :key="p.id" :data-index="i" style="display:flex; align-items:center; gap:10px; padding:11px 16px; border-bottom:1px solid #1a1a25;">
+          <div v-for="(p, i) in people" :key="p.id" :data-index="i" class="team-row" style="display:flex; align-items:center; gap:10px; padding:11px 16px; border-bottom:1px solid #1a1a25;">
             <span :style="{ width: '30px', height: '30px', flex: 'none', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '800', color: '#0a0a10', background: firstRoleColor(p), backgroundImage: p.photo ? `url(${p.photo})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' }">{{ p.photo ? '' : initials(p.name) }}</span>
             <div style="flex:1; min-width:0;">
               <div style="font-size:12.5px; font-weight:700; color:#f5f4fb; display:flex; align-items:center; gap:6px;">
@@ -265,10 +265,10 @@ async function removePerson(person) {
                 <span v-if="p.discord_verified" style="font-size:9px; font-weight:800; letter-spacing:.03em; color:#72dca7; background:rgba(63,207,142,.12); border:1px solid rgba(63,207,142,.22); border-radius:999px; padding:2px 7px;">DISCORD VERIFICADO</span>
                 <span v-else style="font-size:9px; font-weight:800; letter-spacing:.03em; color:#ffc26b; background:rgba(255,194,107,.1); border:1px solid rgba(255,194,107,.22); border-radius:999px; padding:2px 7px;">DISCORD NÃO VERIFICADO</span>
               </div>
-              <div style="width:220px; margin-top:3px;">
+              <div class="team-field" style="width:220px; margin-top:3px;">
                 <MultiRoleSelect :model-value="p.roles || []" :options="roleOptions" width="100%" label="Cargos" @update:model-value="(v) => updatePersonRoles(p, v)" />
               </div>
-              <div style="width:220px; margin-top:6px; display:flex; align-items:center; gap:6px;">
+              <div class="team-field" style="width:220px; margin-top:6px; display:flex; align-items:center; gap:6px;">
                 <i class="fi fi-sr-at" aria-hidden="true" style="font-size:11px; color:#65637a; flex:none;"></i>
                 <label :for="`discord-id-${p.id}`" class="sr-only">Discord ID de {{ p.name }}</label>
                 <input :id="`discord-id-${p.id}`" :value="discordDraft(p)" @input="discordDrafts[p.id] = $event.target.value"
@@ -278,7 +278,7 @@ async function removePerson(person) {
                 <span v-if="savingDiscordId === p.id" class="btn-spinner" aria-hidden="true" style="flex:none;"></span>
               </div>
             </div>
-            <div style="display:flex; gap:6px; flex:none;">
+            <div class="team-actions" style="display:flex; gap:6px; flex:none;">
               <button @click="toggleAdmin(p)" :disabled="togglingAdminId === p.id"
                 :style="{ border: '1px solid #26263a', background: 'transparent', color: p.is_admin ? '#8b899f' : '#b3aaff', borderRadius: '7px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '5px' }">
                 <span v-if="togglingAdminId === p.id" class="btn-spinner" aria-hidden="true"></span>

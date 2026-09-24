@@ -217,10 +217,10 @@ defineExpose({ mascot })
 </script>
 
 <template>
-  <div style="display:flex; align-items:center; gap:14px; padding:10px 16px; background:#0b0b11; flex-wrap:wrap;">
+  <div class="app-header" style="display:flex; align-items:center; gap:14px; padding:10px 16px; background:#0b0b11; flex-wrap:wrap;">
     <button type="button" @click="goHome" aria-label="ShyDevs — ir para o início" style="display:flex; align-items:center; gap:8px; padding:0 4px 0 0; flex:none; white-space:nowrap; cursor:pointer; border:none; background:transparent;">
       <img :src="mascot" alt="" width="32" height="32" style="width:32px; height:32px; flex:none; object-fit:contain; display:block;" />
-      <span style="font-size:15px; font-weight:800; color:#f5f4fb; letter-spacing:-.01em;">ShyDevs</span>
+      <span class="hide-mobile" style="font-size:15px; font-weight:800; color:#f5f4fb; letter-spacing:-.01em;">ShyDevs</span>
     </button>
 
     <div class="project-menu" style="position:relative; flex:none; z-index:100;">
@@ -274,7 +274,7 @@ defineExpose({ mascot })
       </Transition>
     </div>
 
-    <div style="margin-left:4px; flex:none;">
+    <div class="app-nav" style="margin-left:4px; flex:none;">
       <SlidingTabs
         :items="navItems"
         :model-value="activeNav"
@@ -285,8 +285,8 @@ defineExpose({ mascot })
       />
     </div>
     <div style="flex:1; min-width:0;"></div>
-    <button v-if="canEdit" @click="(e) => { bounce(e); goCreate() }" style="display:flex; align-items:center; gap:7px; background:#7c6fff; color:#0a0a10; border:none; border-radius:9px; padding:9px 14px; font-size:12.5px; font-weight:700; cursor:pointer; flex:none; white-space:nowrap;">
-      <i class="fi fi-sr-plus-small" aria-hidden="true"></i>Atribuir Tarefa
+    <button v-if="canEdit" aria-label="Atribuir Tarefa" @click="(e) => { bounce(e); goCreate() }" style="display:flex; align-items:center; gap:7px; background:#7c6fff; color:#0a0a10; border:none; border-radius:9px; padding:9px 14px; font-size:12.5px; font-weight:700; cursor:pointer; flex:none; white-space:nowrap;">
+      <i class="fi fi-sr-plus-small" aria-hidden="true"></i><span class="hide-mobile">Atribuir Tarefa</span>
     </button>
 
     <button v-if="!auth.isLoggedIn" @click="loginOpen = true" style="border:1px solid #26263a; background:#14141d; color:#c7c5dc; border-radius:9px; padding:9px 12px; font-size:12.5px; font-weight:700; cursor:pointer; flex:none; display:flex; align-items:center; gap:6px;">

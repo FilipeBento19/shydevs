@@ -247,7 +247,7 @@ function setQuickDate(offsetDays) {
         {{ error }}
       </div>
 
-      <div style="display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:16px; align-items:start;">
+      <div class="task-grid" style="display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:16px; align-items:start;">
         <!-- left column: details + subtasks -->
         <div style="display:flex; flex-direction:column; gap:16px; min-width:0;">
           <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">

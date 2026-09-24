@@ -37,8 +37,8 @@ function openTask(task) {
 <template>
   <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; overflow:hidden;">
     <div class="nice-scroll" style="overflow-x:auto;">
-      <div style="min-width:940px;">
-        <div style="display:grid; grid-template-columns:34px minmax(0,1fr) 128px 158px 150px 96px 126px; gap:10px; padding:11px 14px; background:#101017; border-bottom:1px solid #1f1f2b; font-size:10.5px; font-weight:700; letter-spacing:.06em; color:#8b899f;">
+      <div class="task-table-inner" style="min-width:940px;">
+        <div class="task-table-head" style="display:grid; grid-template-columns:34px minmax(0,1fr) 128px 158px 150px 96px 126px; gap:10px; padding:11px 14px; background:#101017; border-bottom:1px solid #1f1f2b; font-size:10.5px; font-weight:700; letter-spacing:.06em; color:#8b899f;">
           <div>
             <Checkbox :model-value="allSelected" :disabled="!auth.isLoggedIn || !tasks.some(canSelect)" @update:model-value="$emit('toggle-select-all')" aria-label="Selecionar todas as tarefas" />
           </div>
@@ -52,7 +52,7 @@ function openTask(task) {
         </div>
 
         <TransitionGroup v-else tag="div" @enter="listEnter" @leave="listLeave" :css="false">
-          <div v-for="(t, i) in tasks" :key="t.id" :data-index="i" @click="openTask(t)"
+          <div v-for="(t, i) in tasks" :key="t.id" :data-index="i" class="task-row" @click="openTask(t)"
             :role="auth.isLoggedIn ? 'button' : undefined" :tabindex="auth.isLoggedIn ? 0 : undefined"
             :aria-label="auth.isLoggedIn ? `Abrir tarefa ${t.code}: ${t.title}` : `Tarefa ${t.code}: ${t.title} (entre para ver os detalhes)`"
             @keydown.enter="openTask(t)" @keydown.space.prevent="openTask(t)"
@@ -70,6 +70,7 @@ function openTask(task) {
               </div>
               <div style="font-size:11.5px; color:#8b899f; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.description }}</div>
             </div>
+            <div class="tt-meta" style="display:contents;">
             <div>
               <span :style="{ display: 'inline-flex', alignItems: 'center', gap: '5px', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: '700', background: `color-mix(in oklab, ${roleColor(t.role)} 20%, #14141d)`, color: `color-mix(in oklab, ${roleColor(t.role)} 75%, #fff)` }">
                 <i :class="`fi ${roleIcon(t.role)}`" aria-hidden="true"></i>{{ t.role }}
@@ -84,6 +85,7 @@ function openTask(task) {
             </div>
             <div><span :style="prioBadge(t.priority)">{{ t.priority }}</span></div>
             <div><span :style="statusBadge(t.status)">{{ t.status }}</span></div>
+            </div>
           </div>
         </TransitionGroup>
       </div>
