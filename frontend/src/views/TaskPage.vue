@@ -14,6 +14,8 @@ import CommentsPanel from '../components/CommentsPanel.vue'
 import BackButton from '../components/BackButton.vue'
 import AssigneeAvatar from '../components/AssigneeAvatar.vue'
 import Checkbox from '../components/Checkbox.vue'
+import SlidingTabs from '../components/SlidingTabs.vue'
+import ReferencesPanel from '../components/ReferencesPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,6 +45,15 @@ const noteRequired = computed(() => form.status === 'Concluída' && !form.comple
 
 const newSubtaskTitle = ref('')
 
+// "Detalhes" is the form + checklist + side panels; "Referências" swaps them
+// for a full-width gallery, since reference media needs room to be looked at.
+const activeTab = ref('details')
+const referencesTotal = ref(0)
+const taskTabs = computed(() => [
+  { key: 'details', label: 'Detalhes', icon: 'fi-sr-file' },
+  { key: 'references', label: 'Referências', icon: 'fi-sr-picture', count: referencesTotal.value },
+])
+
 async function load() {
   loading.value = true
   notFound.value = false
@@ -59,6 +70,7 @@ async function load() {
     people.value = peopleList
     activities.value = activityList
     subtasks.value = taskData.subtasks || []
+    referencesTotal.value = taskData.references_total || 0
     form.title = taskData.title
     form.description = taskData.description
     form.role = taskData.role
@@ -247,7 +259,13 @@ function setQuickDate(offsetDays) {
         {{ error }}
       </div>
 
-      <div class="task-grid" style="display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:16px; align-items:start;">
+      <div class="task-tabs">
+        <SlidingTabs :items="taskTabs" v-model="activeTab" pill-color="rgba(124,111,255,.16)" active-text-color="#b3aaff" inactive-text-color="#8b899f" />
+      </div>
+
+      <ReferencesPanel v-if="activeTab === 'references'" :task-id="task.id" @count="referencesTotal = $event" />
+
+      <div v-show="activeTab === 'details'" class="task-grid" style="display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:16px; align-items:start;">
         <!-- left column: details + subtasks -->
         <div style="display:flex; flex-direction:column; gap:16px; min-width:0;">
           <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">

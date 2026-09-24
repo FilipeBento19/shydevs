@@ -192,3 +192,6 @@ textarea:focus-visible,
   .team-row .team-field { width: 100% !important; }
   .team-row .team-actions { flex: 1 1 100% !important; flex-wrap: wrap; }
 }
+
+.task-tabs { margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
+.task-tabs::-webkit-scrollbar { display: none; }

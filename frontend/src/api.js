@@ -143,4 +143,15 @@ export const api = {
     return request('/attachments/', { method: 'POST', body: JSON.stringify(data) })
   },
   deleteAttachment: (id) => request(`/attachments/${id}/`, { method: 'DELETE' }),
+
+  // references (grouped links + files for a task)
+  getReferences: (taskId) => request(`/references/${qs({ task: taskId, project: currentProjectId() })}`),
+  createReference: (data) => {
+    const fd = new FormData()
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== null && v !== undefined && v !== '') fd.append(k, v)
+    })
+    return request('/references/', { method: 'POST', body: fd })
+  },
+  deleteReference: (id) => request(`/references/${id}/`, { method: 'DELETE' }),
 }
