@@ -665,7 +665,13 @@ class SubtaskViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.instance._activity_actor = self.request.user
-        serializer.save()
+        subtask = serializer.save()
+        # Checking a step means work has started: move a pending task along.
+        if subtask.done and subtask.task.status == Status.PENDENTE:
+            task = subtask.task
+            task._activity_actor = self.request.user
+            task.status = Status.EM_ANDAMENTO
+            task.save()
 
     def perform_destroy(self, instance):
         instance._activity_actor = self.request.user

@@ -160,6 +160,30 @@ class CommentApiTests(APITestCase):
         subtask.refresh_from_db()
         self.assertTrue(subtask.done)
 
+    def test_checking_item_moves_pending_task_to_in_progress(self):
+        self.task.assignee = self.author
+        self.task.status = 'Pendente'
+        self.task.save()
+        subtask = Subtask.objects.create(task=self.task, title='Primeira etapa')
+        self.client.force_authenticate(user=self.author)
+
+        self.client.patch(reverse('subtask-detail', args=[subtask.id]), {'done': True}, format='json')
+
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, 'Em andamento')
+
+    def test_checking_item_does_not_reopen_completed_task(self):
+        self.task.assignee = self.author
+        self.task.status = 'Concluída'
+        self.task.save()
+        subtask = Subtask.objects.create(task=self.task, title='Etapa tardia')
+        self.client.force_authenticate(user=self.author)
+
+        self.client.patch(reverse('subtask-detail', args=[subtask.id]), {'done': True}, format='json')
+
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, 'Concluída')
+
     def test_task_owner_cannot_change_checklist_item_text(self):
         self.task.assignee = self.author
         self.task.save(update_fields=['assignee'])

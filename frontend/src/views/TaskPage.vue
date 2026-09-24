@@ -201,6 +201,11 @@ async function toggleSubtask(st) {
   st.done = next
   try {
     await api.updateSubtask(st.id, { done: next })
+    // The server moves a pending task to "Em andamento" on the first checked step.
+    if (next && task.value.status === 'Pendente') {
+      task.value.status = 'Em andamento'
+      form.status = 'Em andamento'
+    }
   } catch (e) {
     st.done = !next
   }
