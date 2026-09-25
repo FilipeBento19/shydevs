@@ -29,9 +29,9 @@ function atlasTexture(THREE) {
   const g = c.getContext('2d')
   for (const [col, x, y, w, h] of ATLAS) { g.fillStyle = col; g.fillRect(x, y, w, h) }
   g.fillStyle = '#000'
-  for (const x of [947, 970]) { g.beginPath(); g.ellipse(x, 39, 3.5, 8, 0, 0, Math.PI * 2); g.fill() }
-  g.strokeStyle = '#000'; g.lineWidth = 5; g.lineCap = 'round'
-  g.beginPath(); g.moveTo(941, 75); g.quadraticCurveTo(959, 102, 978, 75); g.stroke()
+  for (const x of [940, 978]) { g.beginPath(); g.ellipse(x, 38, 9, 18, 0, 0, Math.PI * 2); g.fill() }
+  g.strokeStyle = '#000'; g.lineWidth = 13; g.lineCap = 'round'
+  g.beginPath(); g.moveTo(934, 72); g.quadraticCurveTo(959, 112, 984, 72); g.stroke()
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   return t
@@ -69,7 +69,7 @@ onMounted(async () => {
     camera.lookAt(0, 0, 0)
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+    renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 2), 3))
     renderer.setSize(props.size, props.size)
     renderer.domElement.style.cssText = 'position:absolute; inset:0; width:100%; height:100%; display:block;'
     host.value.appendChild(renderer.domElement)
