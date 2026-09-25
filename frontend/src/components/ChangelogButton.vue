@@ -19,7 +19,7 @@ function hide() {
 </script>
 
 <template>
-  <button ref="trigger" type="button" class="cl-btn" aria-label="O que mudou nesta sprint" title="O que mudou nesta sprint" @click="show">?</button>
+  <button ref="trigger" type="button" class="cl-btn" aria-label="O que mudou nesta sprint" title="O que mudou nesta sprint" @click="show"><span aria-hidden="true">?</span></button>
 
   <Teleport to="body">
     <Transition :css="false" @enter="modalEnter" @leave="modalLeave">
@@ -45,7 +45,8 @@ function hide() {
 </template>
 
 <style scoped>
-.cl-btn { width: 17px; height: 17px; flex: none; display: inline-grid; place-items: center; border: 1px solid #34344a; border-radius: 50%; background: transparent; color: #8b899f; font-size: 10.5px; font-weight: 800; line-height: 1; cursor: pointer; transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+.cl-btn { width: 18px; height: 18px; flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0; box-sizing: border-box; border: 1px solid #34344a; border-radius: 50%; background: transparent; color: #8b899f; font-family: inherit; font-size: 11px; font-weight: 800; line-height: 1; cursor: pointer; transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+.cl-btn span { display: block; transform: translateY(-.5px); }
 .cl-btn:hover, .cl-btn:focus-visible { background: rgba(124, 111, 255, .18); border-color: #7c6fff; color: #cfc9ff; outline: none; }
 
 .cl-backdrop { position: fixed; inset: 0; z-index: 1000; background: rgba(3, 3, 8, .72); display: flex; align-items: center; justify-content: center; padding: 20px; }
