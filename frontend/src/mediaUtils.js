@@ -27,12 +27,27 @@ export function vimeoId(url) {
   }
 }
 
+// Start offset in seconds from a link's ?t= / ?start= / #t= ("90", "1m30s", "1h2m3s").
+export function startSeconds(url) {
+  try {
+    const u = new URL(url)
+    const raw = u.searchParams.get('t') || u.searchParams.get('start') || new URLSearchParams(u.hash.slice(1)).get('t')
+    if (!raw) return 0
+    if (/^\d+$/.test(raw)) return Number(raw)
+    const m = raw.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/)
+    return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0
+  } catch (e) {
+    return 0
+  }
+}
+
 // An iframe-embeddable URL for links we know how to embed, else null.
 export function embedUrl(url) {
+  const start = startSeconds(url)
   const yt = youtubeId(url)
-  if (yt) return `https://www.youtube-nocookie.com/embed/${yt}?rel=0`
+  if (yt) return `https://www.youtube-nocookie.com/embed/${yt}?rel=0${start ? `&start=${start}` : ''}`
   const vm = vimeoId(url)
-  if (vm) return `https://player.vimeo.com/video/${vm}`
+  if (vm) return `https://player.vimeo.com/video/${vm}${start ? `#t=${start}s` : ''}`
   return null
 }
 
