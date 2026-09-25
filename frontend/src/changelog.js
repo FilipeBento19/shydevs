@@ -8,6 +8,7 @@ export const releases = [
       'Quanto mais tarefas em aberto você tem (a partir de 3), mais o noob gira rápido e "glitcha".',
       'Concluir uma tarefa faz o noob dar um giro de comemoração.',
       'Novo "?" ao lado da sprint com o histórico de novidades.',
+      'Com todas as etapas do checklist feitas, só dá para salvar a tarefa marcando Concluída e escrevendo a nota de conclusão.',
     ],
   },
   {

@@ -41,6 +41,7 @@ const deleting = ref(false)
 const error = ref('')
 const confirmDelete = ref(false)
 const savedFlash = ref(false)
+const allStepsDone = computed(() => subtasks.value.length > 0 && subtasks.value.every((st) => st.done))
 const noteRequired = computed(() => form.status === 'Concluída' && !form.completion_note.trim())
 
 const newSubtaskTitle = ref('')
@@ -133,7 +134,12 @@ async function refreshActivities() {
 async function save() {
   if (!canEditStatus.value) return
   error.value = ''
-  if (noteRequired.value) {
+  // Every checklist step is done: the work is finished, so saving means closing it out.
+  if (allStepsDone.value && form.status !== 'Concluída') {
+    error.value = 'Todas as etapas do checklist foram feitas. Marque a tarefa como Concluída e preencha a nota de conclusão para salvar.'
+    return
+  }
+  if (noteRequired.value || (allStepsDone.value && !form.completion_note.trim())) {
     error.value = 'Deixe uma nota de conclusão antes de marcar como concluída.'
     return
   }
@@ -317,6 +323,10 @@ function setQuickDate(offsetDays) {
 
               <div>
                 <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Status</div>
+                <div v-if="allStepsDone && canEditStatus && (form.status !== 'Concluída' || !form.completion_note.trim())" role="status"
+                  style="margin-bottom:8px; padding:8px 10px; border-radius:9px; background:rgba(124,111,255,.12); border:1px solid rgba(124,111,255,.35); font-size:12px; line-height:1.45; color:#cfc9ff;">
+                  Todas as etapas foram feitas. Para salvar, marque <strong>Concluída</strong> e escreva a nota de conclusão.
+                </div>
                 <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px;">
                   <button v-for="s in ['Pendente', 'Em andamento', 'Concluída']" :key="s" type="button" :disabled="!canEditStatus" @click="form.status = s"
                     :style="{ borderRadius: '9px', padding: '9px 0', fontSize: '12px', fontWeight: '700', cursor: canEditStatus ? 'pointer' : 'default', border: `1px solid ${form.status === s ? '#7c6fff' : '#26263a'}`, background: form.status === s ? 'rgba(124,111,255,.16)' : '#0e0e14', color: form.status === s ? '#cfc9ff' : '#c7c5dc' }">
