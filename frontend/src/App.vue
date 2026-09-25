@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { gsap, reduceMotion, toastEnter, toastLeave } from './motion'
-import { mascot } from './mascotFace'
+import NoobSpinner from './components/NoobSpinner.vue'
 import { auth } from './auth'
 import { project } from './project'
 import AppHeader from './components/AppHeader.vue'
@@ -48,7 +48,7 @@ function playEntrance() {
   }
   step(headerBarEl.value, { y: -16, autoAlpha: 0, duration: 0.5 })
   step([heroTitleEl.value, heroSubtitleEl.value], { y: 18, autoAlpha: 0, duration: 0.5, stagger: 0.08 }, '-=0.25')
-  step(heroMascotEl.value, { scale: 0.5, autoAlpha: 0, rotate: -10, duration: 0.6, ease: 'back.out(1.6)' }, '-=0.4')
+  step(heroMascotEl.value?.$el, { scale: 0.5, autoAlpha: 0, rotate: -10, duration: 0.6, ease: 'back.out(1.6)' }, '-=0.4')
 }
 onMounted(async () => {
   await nextTick()
@@ -105,7 +105,7 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
             <h1 ref="heroTitleEl" style="margin:0 0 7px; font-size:27px; font-weight:800; color:#f5f4fb; letter-spacing:-.025em;">{{ route.meta.title }}</h1>
             <p ref="heroSubtitleEl" style="margin:0; font-size:13px; line-height:1.5; color:#9a97b8; max-width:520px;">{{ heroSubtitle }}</p>
           </div>
-          <img ref="heroMascotEl" @click="confettiBurst" :src="mascot" alt="Mascote ShyDevs" style="width:84px; height:84px; flex:none; object-fit:contain; cursor:pointer; filter:drop-shadow(0 10px 24px rgba(124,111,255,.3));" />
+          <NoobSpinner ref="heroMascotEl" :size="84" @click="confettiBurst" style="cursor:pointer; filter:drop-shadow(0 10px 24px rgba(124,111,255,.3));" />
         </div>
       </div>
 
