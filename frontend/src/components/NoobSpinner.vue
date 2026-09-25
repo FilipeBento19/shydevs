@@ -1,13 +1,13 @@
 <script setup>
 // The ShyDevs mascot: a Roblox noob spinning in place (three.js, lazy-loaded).
-// The static mascot image shows until the model is ready — and stays if WebGL
-// or the model fails to load.
+// The static mascot only shows if WebGL or the model fails; while loading the
+// box stays empty, so nothing jumps in size when the model appears.
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { mascot } from '../mascotFace'
 
 const props = defineProps({ size: { type: Number, default: 32 } })
 const host = ref(null)
-const ready = ref(false)
+const failed = ref(false)
 
 const SPIN = 0.9 // rad/s
 const START_YAW = 0.3
@@ -62,7 +62,7 @@ onMounted(async () => {
     pivot.rotation.y = Math.PI + START_YAW
     scene.add(pivot)
 
-    const half = 3.3
+    const half = 3.0
     const camera = new THREE.OrthographicCamera(-half, half, half, -half, 0.1, 100)
     const tilt = (14 * Math.PI) / 180
     camera.position.set(0, Math.sin(tilt) * 20, Math.cos(tilt) * 20)
@@ -83,7 +83,6 @@ onMounted(async () => {
       raf = requestAnimationFrame(frame)
     }
     raf = requestAnimationFrame(frame)
-    ready.value = true
 
     dispose = () => {
       cancelAnimationFrame(raf)
@@ -92,7 +91,7 @@ onMounted(async () => {
       renderer.dispose()
     }
   } catch (e) {
-    // keep the static mascot
+    failed.value = true
   }
 })
 onBeforeUnmount(() => dispose())
@@ -100,6 +99,6 @@ onBeforeUnmount(() => dispose())
 
 <template>
   <div ref="host" :style="{ position: 'relative', width: size + 'px', height: size + 'px', flex: 'none' }" role="img" aria-label="Mascote ShyDevs">
-    <img v-show="!ready" :src="mascot" alt="" :width="size" :height="size" style="width:100%; height:100%; object-fit:contain; display:block;" />
+    <img v-if="failed" :src="mascot" alt="" :width="size" :height="size" style="width:100%; height:100%; object-fit:contain; display:block;" />
   </div>
 </template>

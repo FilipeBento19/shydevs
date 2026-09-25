@@ -105,7 +105,7 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
             <h1 ref="heroTitleEl" style="margin:0 0 7px; font-size:27px; font-weight:800; color:#f5f4fb; letter-spacing:-.025em;">{{ route.meta.title }}</h1>
             <p ref="heroSubtitleEl" style="margin:0; font-size:13px; line-height:1.5; color:#9a97b8; max-width:520px;">{{ heroSubtitle }}</p>
           </div>
-          <NoobSpinner ref="heroMascotEl" :size="84" @click="confettiBurst" style="cursor:pointer; filter:drop-shadow(0 10px 24px rgba(124,111,255,.3));" />
+          <NoobSpinner ref="heroMascotEl" :size="124" @click="confettiBurst" style="cursor:pointer; filter:drop-shadow(0 10px 24px rgba(124,111,255,.3));" />
         </div>
       </div>
 

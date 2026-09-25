@@ -220,7 +220,7 @@ defineExpose({ mascot })
 <template>
   <div class="app-header" style="display:flex; align-items:center; gap:14px; padding:10px 16px; background:#0b0b11; flex-wrap:wrap;">
     <button type="button" @click="goHome" aria-label="ShyDevs — ir para o início" style="display:flex; align-items:center; gap:8px; padding:0 4px 0 0; flex:none; white-space:nowrap; cursor:pointer; border:none; background:transparent;">
-      <NoobSpinner :size="32" />
+      <NoobSpinner :size="46" />
       <span class="hide-mobile" style="font-size:15px; font-weight:800; color:#f5f4fb; letter-spacing:-.01em;">ShyDevs</span>
     </button>
 
