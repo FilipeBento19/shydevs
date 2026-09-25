@@ -29,8 +29,8 @@ function atlasTexture(THREE) {
   const g = c.getContext('2d')
   for (const [col, x, y, w, h] of ATLAS) { g.fillStyle = col; g.fillRect(x, y, w, h) }
   g.fillStyle = '#000'
-  for (const x of [947, 970]) { g.beginPath(); g.ellipse(x, 39, 3.5, 8, 0, 0, Math.PI * 2); g.fill() }
-  g.strokeStyle = '#000'; g.lineWidth = 5; g.lineCap = 'round'
+  for (const x of [947, 970]) { g.beginPath(); g.ellipse(x, 39, 4.5, 10, 0, 0, Math.PI * 2); g.fill() }
+  g.strokeStyle = '#000'; g.lineWidth = 7; g.lineCap = 'round'
   g.beginPath(); g.moveTo(941, 75); g.quadraticCurveTo(959, 102, 978, 75); g.stroke()
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
