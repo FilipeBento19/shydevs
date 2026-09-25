@@ -5,12 +5,23 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { mascot } from '../mascotFace'
 
-const props = defineProps({ size: { type: Number, default: 32 } })
+const props = defineProps({
+  size: { type: Number, default: 32 },
+  spinnable: { type: Boolean, default: false }, // click to flick it like a fidget spinner
+})
 const host = ref(null)
 const failed = ref(false)
 
 const SPIN = 0.9 // rad/s
 const START_YAW = 0.3
+const KICK = 7 // rad/s added per click
+const MAX_SPIN = 30 // rad/s cap (~5 turns/s)
+const DRAG = 0.55 // 1/s: how fast it coasts back to the idle speed
+
+let vel = SPIN
+function flick() {
+  if (props.spinnable) vel = Math.min(vel + KICK, MAX_SPIN)
+}
 
 let raf = 0
 let dispose = () => {}
@@ -77,7 +88,10 @@ onMounted(async () => {
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     let last = performance.now()
     const frame = (now) => {
-      if (!still) pivot.rotation.y += ((now - last) / 1000) * SPIN
+      const dt = Math.min((now - last) / 1000, 0.1)
+      const idle = still ? 0 : SPIN
+      vel = idle + (vel - idle) * Math.exp(-DRAG * dt)
+      pivot.rotation.y += vel * dt
       last = now
       renderer.render(scene, camera)
       raf = requestAnimationFrame(frame)
@@ -98,7 +112,7 @@ onBeforeUnmount(() => dispose())
 </script>
 
 <template>
-  <div ref="host" :style="{ position: 'relative', width: size + 'px', height: size + 'px', flex: 'none' }" role="img" aria-label="Mascote ShyDevs">
+  <div ref="host" @click="flick" :style="{ position: 'relative', width: size + 'px', height: size + 'px', flex: 'none' }" role="img" aria-label="Mascote ShyDevs">
     <img v-if="failed" :src="mascot" alt="" :width="size" :height="size" style="width:100%; height:100%; object-fit:contain; display:block;" />
   </div>
 </template>
