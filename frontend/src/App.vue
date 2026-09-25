@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { gsap, reduceMotion, toastEnter, toastLeave } from './motion'
 import NoobSpinner from './components/NoobSpinner.vue'
 import { refreshWorkload } from './workload'
+import ChangelogButton from './components/ChangelogButton.vue'
+import { currentVersion } from './changelog'
 import { auth } from './auth'
 import { project } from './project'
 import AppHeader from './components/AppHeader.vue'
@@ -100,7 +102,8 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
     <div style="max-width:1180px; margin:0 auto;">
       <div v-if="showHero" style="padding:22px 26px 0;">
         <div style="display:flex; align-items:center; gap:8px; font-size:11.5px; font-weight:600; color:#8b899f; margin-bottom:9px;">
-          <span style="width:6px; height:6px; border-radius:50%; background:#7c6fff;"></span>ShyDevs · Sprint 24.4
+          <span style="width:6px; height:6px; border-radius:50%; background:#7c6fff;"></span>ShyDevs · Sprint {{ currentVersion }}
+          <ChangelogButton />
         </div>
         <div style="display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap;">
           <div style="flex:1; min-width:260px;">
