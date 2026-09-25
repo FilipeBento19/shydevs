@@ -2,8 +2,9 @@
 // The ShyDevs mascot: a Roblox noob spinning in place (three.js, lazy-loaded).
 // The static mascot only shows if WebGL or the model fails; while loading the
 // box stays empty, so nothing jumps in size when the model appears.
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { mascot } from '../mascotFace'
+import { workload } from '../workload'
 
 const props = defineProps({
   size: { type: Number, default: 32 },
@@ -14,11 +15,16 @@ const failed = ref(false)
 
 const SPIN = 0.9 // rad/s
 const START_YAW = 0.3
+const GLITCH_FROM = 3 // tasks at which the glitch (and speed-up) starts
+const IDLE_BOOST = 11 // extra rad/s of idle spin at max task load
+const CELEBRATE_SPIN = 22 // rad/s on task completion
 const KICK = 7 // rad/s added per click
 const MAX_SPIN = 30 // rad/s cap (~5 turns/s)
 const DRAG = 0.55 // 1/s: how fast it coasts back to the idle speed
 
 let vel = SPIN
+// Completing a task sends every noob into a big spin that coasts back down.
+watch(() => workload.completions, () => { vel = Math.max(vel, CELEBRATE_SPIN) })
 function flick() {
   if (props.spinnable) vel = Math.min(vel + KICK, MAX_SPIN)
 }
@@ -65,6 +71,20 @@ onMounted(async () => {
 
     const model = new OBJLoader().parse(text)
     const material = new THREE.MeshLambertMaterial({ map: atlasTexture(THREE) })
+    // Glitch: horizontal slices of the model get shoved sideways in random
+    // bursts. Strength grows continuously with the person's open-task count.
+    const uniforms = { uTime: { value: 0 }, uGlitch: { value: 0 }, uBurst: { value: 0 } }
+    material.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, uniforms)
+      sh.vertexShader = `uniform float uTime; uniform float uGlitch; uniform float uBurst;
+float h(float n) { return fract(sin(n * 127.1) * 43758.5453); }
+` + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+float band = floor(position.y * 3.2);
+float tick = floor(uTime * 22.0);
+float on = step(0.35, h(band + tick * 3.7));
+transformed.x += (h(band * 7.31 + tick) - 0.5) * (uBurst * 2.2 + 0.05) * uGlitch * on;
+transformed.z += (h(band * 3.1 + tick) - 0.5) * uBurst * uGlitch * 0.9;`)
+    }
     model.traverse((o) => { if (o.isMesh) o.material = material })
 
     model.position.sub(new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3()))
@@ -89,10 +109,24 @@ onMounted(async () => {
     let last = performance.now()
     const frame = (now) => {
       const dt = Math.min((now - last) / 1000, 0.1)
-      const idle = still ? 0 : SPIN
+      // intensity 0..1, smooth in the task count (no stages): 0 below GLITCH_FROM, ~0.6 ten tasks later
+      const g = 1 - Math.exp(-Math.max(0, workload.count - (GLITCH_FROM - 1)) / 10)
+      // more tasks -> faster idle spin (0.9 rad/s up to ~12 rad/s)
+      const idle = still ? 0 : SPIN + g * IDLE_BOOST
       vel = idle + (vel - idle) * Math.exp(-DRAG * dt)
       pivot.rotation.y += vel * dt
       last = now
+
+      const t = now / 1000
+      const burstRoll = Math.sin(Math.floor(t * 8) * 91.7) * 43758.5453 % 1
+      const burst = Math.abs(burstRoll) > 1 - (0.08 + 0.7 * g) ? 1 : 0
+      uniforms.uTime.value = t
+      uniforms.uGlitch.value = g
+      uniforms.uBurst.value = burst
+      const d = (burst * 3 + 0.4) * g // RGB-split distance in px
+      const el = renderer.domElement
+      el.style.filter = g > 0.001 ? `drop-shadow(${d}px 0 0 rgba(255,40,80,.85)) drop-shadow(${-d}px 0 0 rgba(0,230,255,.85))` : ''
+      el.style.opacity = burst && g > 0.5 && Math.sin(t * 90) > 0.6 ? String(1 - 0.5 * g) : '1'
       renderer.render(scene, camera)
       raf = requestAnimationFrame(frame)
     }

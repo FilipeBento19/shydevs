@@ -64,6 +64,14 @@ function qs(params = {}) {
   return s ? `?${s}` : ''
 }
 
+// Lets the UI (the spinning noob) react when something gets completed.
+function announceCompletion(data) {
+  return (res) => {
+    if (data?.status === 'Concluída') window.dispatchEvent(new CustomEvent('shydevs:task-completed'))
+    return res
+  }
+}
+
 export const api = {
   // projects
   getProjects: () => request('/projects/'),
@@ -108,10 +116,10 @@ export const api = {
   getTask: (id) => request(`/tasks/${id}/`),
   createTask: (data) => request('/tasks/', { method: 'POST', body: JSON.stringify(data) }),
   updateTask: (id, data) =>
-    request(`/tasks/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
+    request(`/tasks/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }).then(announceCompletion(data)),
   deleteTask: (id) => request(`/tasks/${id}/`, { method: 'DELETE' }),
   bulkUpdateTasks: (ids, fields) =>
-    request('/tasks/bulk_update/', { method: 'POST', body: JSON.stringify({ ids, fields }) }),
+    request('/tasks/bulk_update/', { method: 'POST', body: JSON.stringify({ ids, fields }) }).then(announceCompletion(fields)),
   bulkDeleteTasks: (ids) =>
     request('/tasks/bulk-delete/', { method: 'DELETE', body: JSON.stringify({ ids }) }),
 

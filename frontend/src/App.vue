@@ -1,13 +1,15 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { gsap, reduceMotion, toastEnter, toastLeave } from './motion'
 import NoobSpinner from './components/NoobSpinner.vue'
+import { refreshWorkload } from './workload'
 import { auth } from './auth'
 import { project } from './project'
 import AppHeader from './components/AppHeader.vue'
 
 const route = useRoute()
+watch([() => route.name, () => auth.state.person?.id], refreshWorkload, { immediate: true })
 const router = useRouter()
 const heroSubtitle = computed(() => {
   if (route.name === 'board') {
@@ -17,7 +19,7 @@ const heroSubtitle = computed(() => {
   }
   return route.meta.subtitle || ''
 })
-const showHero = computed(() => !['task', 'new-task', 'home'].includes(route.name))
+const showHero = computed(() => !['task', 'new-task', 'home', 'noob-test'].includes(route.name))
 
 const headerBarEl = ref(null)
 const heroTitleEl = ref(null)

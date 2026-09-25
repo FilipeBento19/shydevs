@@ -7,6 +7,7 @@ import DashboardView from './components/DashboardView.vue'
 import HistoryView from './components/HistoryView.vue'
 import TeamView from './components/TeamView.vue'
 import BotView from './components/BotView.vue'
+import NoobTest from './views/NoobTest.vue'
 import { auth } from './auth'
 
 const routes = [
@@ -52,6 +53,7 @@ const routes = [
     component: NewTaskPage,
     meta: { nav: null, title: 'Atribuir Nova Tarefa', adminOnly: true },
   },
+  { path: '/noob-test', name: 'noob-test', component: NoobTest, meta: { nav: null, title: 'Teste do noob', adminOnly: true } },
   {
     path: '/tasks/:id',
     name: 'task',
