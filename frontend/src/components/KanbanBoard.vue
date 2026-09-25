@@ -90,6 +90,7 @@ function onDropCol(status) {
           <div :style="{ marginTop: '6px', fontSize: '10.5px', fontWeight: '600', color: isLate(t) ? '#ff8f98' : '#8b899f' }">
             <i class="fi fi-sr-calendar" style="opacity:.7; margin-right:4px;" aria-hidden="true"></i>{{ formatDue(t) }}
           </div>
+          <div v-if="t.blocked" :title="`Aguardando ${t.depends_on_code} · ${t.depends_on_title}`" style="margin-top:6px; font-size:10.5px; font-weight:700; color:#ffc46b;"><i class="fi fi-sr-lock" aria-hidden="true"></i> Aguardando {{ t.depends_on_code }}</div>
           <div v-if="t.subtasks_total || t.attachments_total" style="margin-top:6px; font-size:10.5px; color:#8b899f; display:flex; align-items:center; gap:10px;">
             <span v-if="t.subtasks_total"><i class="fi fi-sr-check-circle" style="opacity:.6;" aria-hidden="true"></i> {{ t.subtasks_done }}/{{ t.subtasks_total }}</span>
             <span v-if="t.attachments_total"><i class="fi fi-sr-paperclip" style="opacity:.6;" aria-hidden="true"></i> {{ t.attachments_total }}</span>

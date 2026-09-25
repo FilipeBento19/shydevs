@@ -32,6 +32,17 @@ def stash_previous_task(sender, instance, **kwargs):
         instance.in_progress_reminder_sent = False
 
 
+def notify_unblocked(done_task):
+    """DM the assignee of every task that was waiting on `done_task`."""
+    for waiting in done_task.dependents.exclude(status=Status.CONCLUIDA).select_related('assignee'):
+        if waiting.assignee_id:
+            discord.send_task_reminder_dm(
+                waiting, 'Tarefa liberada',
+                f'{waiting.assignee.name}, {done_task.code} foi concluída e libera esta tarefa. Pode começar!',
+                'unblocked', footer_note='Aviso automático',
+            )
+
+
 @receiver(post_save, sender=Task)
 def log_task_activity(sender, instance, created, **kwargs):
     actor = getattr(instance, '_activity_actor', None)
@@ -64,6 +75,9 @@ def log_task_activity(sender, instance, created, **kwargs):
             details={'antes': previous.status, 'depois': instance.status},
         )
 
+    if previous.status != instance.status and instance.status == Status.CONCLUIDA:
+        notify_unblocked(instance)
+
     if previous.assignee_id != instance.assignee_id:
         old_name = previous.assignee.name if previous.assignee_id else 'ninguém'
         Activity.objects.create(
@@ -75,7 +89,8 @@ def log_task_activity(sender, instance, created, **kwargs):
         )
 
     tracked = {'title': 'título', 'description': 'descrição', 'role': 'cargo', 'due_date': 'prazo',
-               'priority': 'prioridade', 'checked': 'marcação', 'completion_note': 'nota de conclusão'}
+               'priority': 'prioridade', 'checked': 'marcação', 'completion_note': 'nota de conclusão',
+               'depends_on': 'depende de'}
     changes = {}
     for field, label in tracked.items():
         before, after = getattr(previous, field), getattr(instance, field)

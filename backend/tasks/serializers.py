@@ -1,7 +1,7 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 
-from .models import Activity, Attachment, Comment, DiscordMessage, Person, Project, Reference, Role, Subtask, Task
+from .models import Activity, Attachment, Comment, DiscordAttachment, DiscordMessage, Person, Project, Reference, Role, Status, Subtask, Task
 from .storages import kind_for_name
 
 
@@ -12,12 +12,27 @@ class ProjectSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at']
 
 
+class DiscordAttachmentSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DiscordAttachment
+        fields = ['id', 'kind', 'is_gif', 'name', 'url']
+
+    def get_url(self, obj):
+        if obj.file:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.file.url) if request else obj.file.url
+        return obj.source_url
+
+
 class DiscordMessageSerializer(serializers.ModelSerializer):
     person_name = serializers.CharField(source='person.name', read_only=True, default=None)
+    attachments = DiscordAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = DiscordMessage
-        fields = ['id', 'person', 'person_name', 'discord_id', 'direction', 'source', 'content', 'created_at']
+        fields = ['id', 'person', 'person_name', 'discord_id', 'direction', 'source', 'content', 'created_at', 'attachments']
 
 
 class PersonSerializer(serializers.ModelSerializer):
@@ -213,6 +228,10 @@ class TaskSerializer(serializers.ModelSerializer):
     subtasks_total = serializers.SerializerMethodField()
     attachments_total = serializers.SerializerMethodField()
     references_total = serializers.SerializerMethodField()
+    depends_on_code = serializers.CharField(source='depends_on.code', read_only=True, default=None)
+    depends_on_title = serializers.CharField(source='depends_on.title', read_only=True, default=None)
+    blocked = serializers.SerializerMethodField()
+    blocking = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -221,6 +240,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'assignee', 'assignee_name', 'assignee_photo', 'due_date', 'priority', 'status',
             'checked', 'completion_note', 'created_at', 'subtasks', 'subtasks_done',
             'subtasks_total', 'attachments_total', 'references_total',
+            'depends_on', 'depends_on_code', 'depends_on_title', 'blocked', 'blocking',
         ]
         read_only_fields = ['project', 'code', 'created_at']
 
@@ -228,6 +248,41 @@ class TaskSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         user = getattr(request, 'user', None) if request else None
         return user if user and getattr(user, 'is_authenticated', False) else None
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        instance = self.instance
+        dep = attrs['depends_on'] if 'depends_on' in attrs else (instance.depends_on if instance else None)
+        if dep is not None:
+            project_id = instance.project_id if instance else getattr(self._actor(), 'project_id', None)
+            if project_id and dep.project_id != project_id:
+                raise serializers.ValidationError({'depends_on': 'Essa tarefa é de outro projeto.'})
+            # Walk up the chain: pointing at the task itself, or at anything that
+            # (transitively) already depends on it, would make a cycle.
+            node = dep
+            while node is not None:
+                if instance and node.pk == instance.pk:
+                    raise serializers.ValidationError({'depends_on': 'Isso criaria uma dependência circular.'})
+                node = node.depends_on
+            new_status = attrs.get('status', instance.status if instance else Status.PENDENTE)
+            starting = new_status != Status.PENDENTE and (instance is None or new_status != instance.status)
+            if dep.status != Status.CONCLUIDA and starting:
+                raise serializers.ValidationError({
+                    'status': f'Essa tarefa depende de {dep.code} · {dep.title}, que ainda não foi concluída.',
+                })
+        return attrs
+
+    def get_blocked(self, obj):
+        return obj.is_blocked
+
+    def get_blocking(self, obj):
+        """Unfinished tasks still waiting on this one (nobody waits on a finished task)."""
+        if obj.status == Status.CONCLUIDA:
+            return []
+        return [
+            {'id': t.id, 'code': t.code, 'title': t.title}
+            for t in obj.dependents.all() if t.status != Status.CONCLUIDA
+        ]
 
     def create(self, validated_data):
         instance = Task(**validated_data)

@@ -71,7 +71,7 @@ async def on_resumed():
     gateway_state['error'] = None
 
 
-def _forward_incoming(discord_id, content):
+def _forward_incoming(discord_id, content, attachments=()):
     forward_state['status'] = 'sending'
     forward_state['http_status'] = None
     forward_state['backend_detail'] = None
@@ -79,8 +79,9 @@ def _forward_incoming(discord_id, content):
     try:
         response = requests.post(
             f'{BACKEND_URL}/api/discord/incoming/',
-            json={'secret': INCOMING_SECRET, 'discord_id': discord_id, 'content': content},
-            timeout=10,
+            json={'secret': INCOMING_SECRET, 'discord_id': discord_id, 'content': content,
+                  'attachments': list(attachments)},
+            timeout=60,  # the backend downloads the media before answering
         )
         forward_state['http_status'] = response.status_code
         try:
@@ -100,14 +101,38 @@ def _forward_incoming(discord_id, content):
         print(f'Falha ao encaminhar DM: {forward_state["backend_detail"]}', flush=True)
 
 
+def _media_from(message):
+    """Uploaded files plus GIF/image/video link previews, as plain dicts."""
+    media = [
+        {'url': a.url, 'filename': a.filename, 'content_type': a.content_type or ''}
+        for a in message.attachments
+    ]
+    for e in message.embeds:
+        url = (e.video and e.video.url) or (e.image and e.image.url) or (e.thumbnail and e.thumbnail.url)
+        if url and e.type in ('gifv', 'image', 'video'):
+            media.append({'url': url, 'filename': '', 'content_type': '', 'gif': e.type == 'gifv'})
+    return media[:10]
+
+
 @client.event
 async def on_message(message):
     if message.author.bot or message.guild is not None:
         return  # only forward DMs from real people, not server messages
     if not BACKEND_URL or not INCOMING_SECRET:
         return
+    # Discord resolves link previews (Tenor/Giphy GIFs...) a moment after the
+    # message arrives, so re-fetch it once to see the embeds.
+    if 'http' in message.content and not message.embeds:
+        await asyncio.sleep(2)
+        try:
+            message = await message.channel.fetch_message(message.id)
+        except discord.HTTPException:
+            pass
+    media = _media_from(message)
+    if not (message.content or media):
+        return
     # requests is blocking — offload so it doesn't stall the event loop.
-    await asyncio.to_thread(_forward_incoming, str(message.author.id), message.content)
+    await asyncio.to_thread(_forward_incoming, str(message.author.id), message.content, media)
 
 
 def run_bot():

@@ -2,6 +2,15 @@
 // first entry's version: add a new entry (and bump the version) with every push.
 export const releases = [
   {
+    version: '24.8',
+    items: [
+      'Tarefas podem depender de outra: fica bloqueada (cadeado "Aguardando SD-xxx") até a outra ser concluída, e a página das duas avisa isso.',
+      'Quando a tarefa da qual outra depende é concluída, o responsável recebe uma DM "Tarefa liberada".',
+      'O bot não manda mais o lembrete "Ainda não começou?" para quem já tem uma tarefa em andamento, nem para tarefas bloqueadas.',
+      'Aba Bot: imagens, vídeos e GIFs que as pessoas mandam para o bot aparecem na conversa, com visualizador.',
+    ],
+  },
+  {
     version: '24.7',
     items: [
       'Noob 3D girando no lugar da logo (topo e cabeçalho da página); clique nele para girar como um fidget spinner.',

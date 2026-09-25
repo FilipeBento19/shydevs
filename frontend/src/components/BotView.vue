@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
+import MediaViewer from './MediaViewer.vue'
 
 const messages = ref([])
 const loading = ref(true)
@@ -34,6 +35,16 @@ const totalIncoming = computed(() => messages.value.filter((m) => m.direction ==
 function fmtDate(iso) {
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
+// ---- media people sent the bot: tiles in the feed, real viewer on click ----
+const viewer = ref(null) // { items, index }
+function openMedia(m, index) {
+  // MediaViewer speaks the "reference" shape.
+  const items = m.attachments.map((a) => ({
+    id: a.id, kind: a.kind, file: a.url, caption: a.name, group: 'Mensagem no Discord', uploaded_by_name: who(m),
+  }))
+  viewer.value = { items, index }
+}
+
 function who(m) {
   return m.person_name || (m.discord_id ? `Discord ID ${m.discord_id}` : 'Desconhecido')
 }
@@ -79,9 +90,34 @@ function who(m) {
             <span style="font-size:9.5px; font-weight:700; letter-spacing:.03em; color:#8b899f; background:#0e0e14; border-radius:999px; padding:2px 8px;">{{ SOURCE_LABELS[m.source] || m.source }}</span>
             <time style="margin-left:auto; font-size:10.5px; color:#65637a; white-space:nowrap;">{{ fmtDate(m.created_at) }}</time>
           </div>
-          <p style="margin:0; font-size:12.5px; color:#c7c5dc; white-space:pre-wrap; line-height:1.5;">{{ m.content }}</p>
+          <p v-if="m.content" style="margin:0; font-size:12.5px; color:#c7c5dc; white-space:pre-wrap; line-height:1.5; overflow-wrap:anywhere;">{{ m.content }}</p>
+          <div v-if="m.attachments?.length" class="bot-media">
+            <button v-for="(a, i) in m.attachments" :key="a.id" type="button" class="bot-tile" :class="{ file: a.kind === 'file' }"
+              :aria-label="`Abrir ${a.name || 'anexo'}`" @click="openMedia(m, i)">
+              <img v-if="a.kind === 'image'" :src="a.url" :alt="a.name" loading="lazy" />
+              <video v-else-if="a.kind === 'video'" :src="a.is_gif ? a.url : `${a.url}#t=0.1`" :autoplay="a.is_gif" :loop="a.is_gif" muted playsinline preload="metadata" tabindex="-1"></video>
+              <span v-else class="bot-file"><i class="fi fi-sr-file" aria-hidden="true"></i>{{ a.name || 'Arquivo' }}</span>
+              <span v-if="a.kind === 'video' && !a.is_gif" class="bot-play" aria-hidden="true"><i class="fi fi-sr-play"></i></span>
+              <span v-if="a.is_gif" class="bot-gif" aria-hidden="true">GIF</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
+
+    <MediaViewer v-if="viewer" :items="viewer.items" :index="viewer.index" @update:index="viewer.index = $event" @close="viewer = null" />
   </div>
 </template>
+
+<style scoped>
+.bot-media { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.bot-tile { position: relative; width: 190px; height: 130px; padding: 0; border: 1px solid #26263a; border-radius: 10px; overflow: hidden; background: #0b0b11; cursor: pointer; }
+.bot-tile:hover, .bot-tile:focus-visible { border-color: #7c6fff; outline: none; }
+.bot-tile img, .bot-tile video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.bot-tile.file { width: auto; max-width: 260px; height: auto; }
+.bot-file { display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 12px; color: #c7c5dc; text-align: left; word-break: break-all; }
+.bot-play { position: absolute; inset: 0; margin: auto; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(20, 20, 29, .75); color: #fff; font-size: 13px; }
+.bot-play i { margin-left: 2px; }
+.bot-gif { position: absolute; left: 6px; bottom: 6px; font-size: 9.5px; font-weight: 800; letter-spacing: .05em; color: #fff; background: rgba(0, 0, 0, .65); border-radius: 5px; padding: 2px 6px; }
+@media (max-width: 760px) { .bot-tile { width: 100%; height: 170px; } }
+</style>

@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from . import discord
+from .incoming_media import save_attachments
 from .models import (
     Activity, Attachment, AuthToken, Comment, DiscordMessage, Person, Priority, Project, Reference, Role,
     Status, Subtask, Task,
@@ -457,7 +458,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         return super().partial_update(request, *args, **kwargs)
 
     def get_queryset(self):
-        qs = Task.objects.select_related('assignee').prefetch_related('subtasks', 'attachments', 'references').all()
+        qs = Task.objects.select_related('assignee', 'depends_on').prefetch_related('subtasks', 'attachments', 'references', 'dependents').all()
         params = self.request.query_params
         user = self.request.user
 
@@ -608,14 +609,17 @@ class TaskViewSet(viewsets.ModelViewSet):
                     status=http_status.HTTP_403_FORBIDDEN,
                 )
 
-        updated = []
-        for task in qs:
+        updated, blocked = [], []
+        for task in qs.select_related('depends_on'):
+            if fields.get('status') not in (None, Status.PENDENTE) and task.is_blocked:
+                blocked.append(task.code)  # waiting on another task: can't be started or finished yet
+                continue
             for k, v in fields.items():
                 setattr(task, k, v)
             task._activity_actor = self._actor()
             task.save()
             updated.append(task.id)
-        return Response({'updated': updated})
+        return Response({'updated': updated, 'blocked': blocked})
 
     @action(detail=False, methods=['delete'], url_path='bulk-delete')
     def bulk_delete(self, request):
@@ -667,7 +671,7 @@ class SubtaskViewSet(viewsets.ModelViewSet):
         serializer.instance._activity_actor = self.request.user
         subtask = serializer.save()
         # Checking a step means work has started: move a pending task along.
-        if subtask.done and subtask.task.status == Status.PENDENTE:
+        if subtask.done and subtask.task.status == Status.PENDENTE and not subtask.task.is_blocked:
             task = subtask.task
             task._activity_actor = self.request.user
             task.status = Status.EM_ANDAMENTO
@@ -714,7 +718,7 @@ class DiscordMessageViewSet(viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         if not getattr(user, 'is_admin', False):
             return DiscordMessage.objects.none()
-        return DiscordMessage.objects.select_related('person').filter(project_id=user.project_id)[:300]
+        return DiscordMessage.objects.select_related('person').prefetch_related('attachments').filter(project_id=user.project_id)[:300]
 
 
 class IncomingDiscordMessageView(APIView):
@@ -733,7 +737,8 @@ class IncomingDiscordMessageView(APIView):
 
         discord_id = (request.data.get('discord_id') or '').strip()
         content = (request.data.get('content') or '').strip()
-        if not discord_id or not content:
+        media = request.data.get('attachments') or []
+        if not discord_id or not (content or media):
             return Response({'detail': 'Informe discord_id e content.'}, status=400)
 
         verification_code = content.upper()
@@ -785,7 +790,7 @@ class IncomingDiscordMessageView(APIView):
                 return Response({'verified': True, 'person': pending_person.name})
 
         person = Person.objects.filter(discord_id=discord_id).first()
-        DiscordMessage.objects.create(
+        logged = DiscordMessage.objects.create(
             project=person.project if person else None,
             person=person,
             discord_id=discord_id,
@@ -793,6 +798,8 @@ class IncomingDiscordMessageView(APIView):
             source=DiscordMessage.Source.DM,
             content=content,
         )
+        if media:
+            save_attachments(logged, media)
         return Response(status=http_status.HTTP_204_NO_CONTENT)
 
 

@@ -23,6 +23,7 @@ const router = useRouter()
 const task = ref(null)
 const roles = ref([])
 const people = ref([])
+const allTasks = ref([])
 const subtasks = ref([])
 const activities = ref([])
 const loading = ref(true)
@@ -34,7 +35,7 @@ const canEditStatus = computed(() => canEdit.value || isOwner.value)
 const canToggleChecklist = computed(() => canEdit.value || isOwner.value)
 
 const form = reactive({
-  title: '', description: '', role: '', assignee: null, due_date: '', priority: '', status: '', completion_note: '',
+  title: '', description: '', role: '', assignee: null, due_date: '', priority: '', status: '', completion_note: '', depends_on: null,
 })
 const saving = ref(false)
 const deleting = ref(false)
@@ -60,12 +61,14 @@ async function load() {
   notFound.value = false
   error.value = ''
   try {
-    const [taskData, roleList, peopleList, activityList] = await Promise.all([
+    const [taskData, roleList, peopleList, activityList, taskList] = await Promise.all([
       api.getTask(route.params.id),
       api.getRoles(),
       api.getPeople(),
       api.getActivities(route.params.id),
+      api.getTasks(),
     ])
+    allTasks.value = taskList
     task.value = taskData
     roles.value = roleList
     people.value = peopleList
@@ -79,6 +82,7 @@ async function load() {
     form.due_date = taskData.due_date || ''
     form.priority = taskData.priority
     form.status = taskData.status
+    form.depends_on = taskData.depends_on
     form.completion_note = taskData.completion_note || ''
   } catch (e) {
     if (e.status === 404) notFound.value = true
@@ -105,6 +109,11 @@ watch(tasksVersion, async () => {
 
 const formPeople = computed(() => people.value.filter((p) => (p.roles || []).includes(form.role)))
 const roleOptions = computed(() => roles.value.map((r) => ({ value: r.name, label: r.name, icon: roleIcon(r.name), color: r.color })))
+const dependencyOptions = computed(() => [
+  { value: null, label: 'Nenhuma' },
+  ...allTasks.value.filter((t) => t.id !== task.value?.id).map((t) => ({ value: t.id, label: `${t.code} · ${t.title}` })),
+])
+const blocked = computed(() => !!task.value?.blocked)
 const assigneeOptions = computed(() => [
   { value: null, label: 'Sem responsável' },
   ...formPeople.value.map((p) => ({ value: p.id, label: p.name })),
@@ -155,6 +164,7 @@ async function save() {
           priority: form.priority,
           status: form.status,
           completion_note: form.completion_note,
+          depends_on: form.depends_on,
         }
       : { status: form.status, completion_note: form.completion_note }
     const updated = await api.updateTask(task.value.id, payload)
@@ -270,6 +280,24 @@ function setQuickDate(offsetDays) {
         {{ error }}
       </div>
 
+      <div v-if="blocked" role="status" class="dep-banner dep-blocked">
+        <i class="fi fi-sr-lock" aria-hidden="true"></i>
+        <div>
+          Esta tarefa só poderá ser iniciada depois que
+          <router-link :to="{ name: 'task', params: { id: task.depends_on } }">{{ task.depends_on_code }} · {{ task.depends_on_title }}</router-link>
+          for concluída.
+        </div>
+      </div>
+      <div v-if="task.blocking?.length" role="status" class="dep-banner dep-blocking">
+        <i class="fi fi-sr-link" aria-hidden="true"></i>
+        <div>
+          Estas tarefas estão esperando a conclusão desta:
+          <template v-for="(t, i) in task.blocking" :key="t.id">
+            <router-link :to="{ name: 'task', params: { id: t.id } }">{{ t.code }} · {{ t.title }}</router-link><span v-if="i < task.blocking.length - 1">, </span>
+          </template>.
+        </div>
+      </div>
+
       <div class="task-tabs">
         <SlidingTabs :items="taskTabs" v-model="activeTab" pill-color="rgba(124,111,255,.16)" active-text-color="#b3aaff" inactive-text-color="#8b899f" />
       </div>
@@ -316,6 +344,10 @@ function setQuickDate(offsetDays) {
                   </div>
                 </div>
                 <div>
+                  <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Depende de</div>
+                  <CustomSelect v-model="form.depends_on" :options="dependencyOptions" :disabled="!canEdit" width="100%" label="Depende de" />
+                </div>
+                <div>
                   <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Prioridade</div>
                   <CustomSelect v-model="form.priority" :options="priorityOptions" :disabled="!canEdit" width="100%" label="Prioridade" />
                 </div>
@@ -328,7 +360,7 @@ function setQuickDate(offsetDays) {
                   Todas as etapas foram feitas. Para salvar, marque <strong>Concluída</strong> e escreva a nota de conclusão.
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px;">
-                  <button v-for="s in ['Pendente', 'Em andamento', 'Concluída']" :key="s" type="button" :disabled="!canEditStatus" @click="form.status = s"
+                  <button v-for="s in ['Pendente', 'Em andamento', 'Concluída']" :key="s" type="button" :disabled="!canEditStatus || (blocked && s !== 'Pendente')" @click="form.status = s"
                     :style="{ borderRadius: '9px', padding: '9px 0', fontSize: '12px', fontWeight: '700', cursor: canEditStatus ? 'pointer' : 'default', border: `1px solid ${form.status === s ? '#7c6fff' : '#26263a'}`, background: form.status === s ? 'rgba(124,111,255,.16)' : '#0e0e14', color: form.status === s ? '#cfc9ff' : '#c7c5dc' }">
                     {{ s }}
                   </button>
@@ -399,3 +431,13 @@ function setQuickDate(offsetDays) {
     </template>
   </div>
 </template>
+
+<style scoped>
+.dep-banner { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; padding: 11px 14px; border-radius: 10px; font-size: 12.5px; line-height: 1.5; }
+.dep-banner i { margin-top: 2px; flex: none; }
+.dep-banner a { font-weight: 700; text-decoration: underline; }
+.dep-blocked { background: rgba(255, 196, 107, .1); border: 1px solid rgba(255, 196, 107, .35); color: #ffd9a0; }
+.dep-blocked a, .dep-blocked i { color: #ffc46b; }
+.dep-blocking { background: rgba(124, 111, 255, .1); border: 1px solid rgba(124, 111, 255, .3); color: #cfc9ff; }
+.dep-blocking a, .dep-blocking i { color: #b3aaff; }
+</style>

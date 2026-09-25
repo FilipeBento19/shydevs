@@ -65,6 +65,7 @@ function openTask(task) {
               <div style="display:flex; align-items:center; gap:8px;">
                 <span style="font-family:'JetBrains Mono', monospace; font-size:10.5px; color:#8f8da8;">{{ t.code }}</span>
                 <span style="font-size:13px; font-weight:700; color:#f5f4fb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.title }}</span>
+                <span v-if="t.blocked" :title="`Aguardando ${t.depends_on_code} · ${t.depends_on_title}`" style="font-size:10.5px; font-weight:700; color:#ffc46b; flex:none;"><i class="fi fi-sr-lock" aria-hidden="true"></i> Aguardando {{ t.depends_on_code }}</span>
                 <span v-if="t.subtasks_total" style="font-size:10.5px; color:#8b899f; flex:none;"><i class="fi fi-sr-check-circle" style="opacity:.6;" aria-hidden="true"></i> {{ t.subtasks_done }}/{{ t.subtasks_total }}</span>
                 <span v-if="t.attachments_total" style="font-size:10.5px; color:#8b899f; flex:none;"><i class="fi fi-sr-paperclip" style="opacity:.6;" aria-hidden="true"></i> {{ t.attachments_total }}</span>
               </div>

@@ -33,7 +33,7 @@ async function request(path, options = {}) {
     let detail = ''
     try {
       const data = await res.json()
-      detail = data.detail || JSON.stringify(data)
+      detail = data.detail || Object.values(data).flat().find((v) => typeof v === 'string') || JSON.stringify(data)
     } catch (e) {
       detail = await res.text()
     }

@@ -10,6 +10,7 @@ import PrioritySelectButtons from '../components/PrioritySelectButtons.vue'
 import DueDateField from '../components/DueDateField.vue'
 import AssigneeSelect from '../components/AssigneeSelect.vue'
 import BackButton from '../components/BackButton.vue'
+import CustomSelect from '../components/CustomSelect.vue'
 
 const router = useRouter()
 
@@ -37,8 +38,12 @@ async function loadRefs() {
 onMounted(loadRefs)
 
 const form = reactive({
-  title: '', description: '', role: 'Modelador', assignee: null, due_date: '', priority: 'Alta',
+  title: '', description: '', role: 'Modelador', assignee: null, due_date: '', priority: 'Alta', depends_on: null,
 })
+const dependencyOptions = computed(() => [
+  { value: null, label: 'Nenhuma' },
+  ...tasks.value.map((t) => ({ value: t.id, label: `${t.code} · ${t.title}` })),
+])
 const submitting = ref(false)
 const formError = ref('')
 const checklist = ref([''])
@@ -90,6 +95,7 @@ async function submit() {
       assignee: form.assignee,
       due_date: form.due_date || null,
       priority: form.priority,
+      depends_on: form.depends_on,
       status: 'Pendente',
     })
     const steps = checklist.value.map((item) => item.trim()).filter(Boolean)
@@ -171,6 +177,12 @@ async function submit() {
           <div>
             <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Prioridade</div>
             <PrioritySelectButtons v-model="form.priority" />
+          </div>
+
+          <div>
+            <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Depende de <span style="font-weight:500; color:#77758d;">(opcional)</span></div>
+            <CustomSelect v-model="form.depends_on" :options="dependencyOptions" width="100%" label="Depende de" />
+            <div style="margin-top:5px; font-size:11px; color:#77758d;">A tarefa só poderá ser iniciada depois que essa for concluída.</div>
           </div>
         </div>
 

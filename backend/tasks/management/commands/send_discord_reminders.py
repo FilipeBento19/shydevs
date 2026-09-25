@@ -63,6 +63,10 @@ class Command(BaseCommand):
             Task.objects.select_related('assignee')
             .filter(status=Status.PENDENTE, pending_reminder_sent=False, status_changed_at__lte=now - PENDING_AFTER)
             .exclude(assignee__isnull=True).exclude(assignee__discord_id='')
+            # Nagging about a task that hasn't started makes no sense while the
+            # person is already busy with another one, or while it's blocked.
+            .exclude(assignee__tasks__status=Status.EM_ANDAMENTO)
+            .exclude(depends_on__isnull=False, depends_on__status__in=[Status.PENDENTE, Status.EM_ANDAMENTO])
         )
         for task in pending:
             d.send_task_reminder_dm(

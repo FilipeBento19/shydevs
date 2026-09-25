@@ -125,10 +125,18 @@ class Task(models.Model):
     status_changed_at = models.DateTimeField(default=timezone.now)
     pending_reminder_sent = models.BooleanField(default=False)
     in_progress_reminder_sent = models.BooleanField(default=False)
+    # This task can't be started until `depends_on` is done ("Concluída").
+    depends_on = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='dependents'
+    )
 
     class Meta:
         ordering = ['-created_at']
         unique_together = [('project', 'code')]
+
+    @property
+    def is_blocked(self):
+        return bool(self.depends_on_id and self.depends_on.status != Status.CONCLUIDA)
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -219,6 +227,7 @@ class DiscordMessage(models.Model):
         PENDING_REMINDER = 'pending_reminder', 'Lembrete: parada em Pendente'
         IN_PROGRESS_REMINDER = 'in_progress_reminder', 'Lembrete: presa em Em andamento'
         DUE_SOON_REMINDER = 'due_soon_reminder', 'Lembrete: prazo chegando'
+        UNBLOCKED = 'unblocked', 'Aviso: tarefa liberada'
         DIGEST = 'digest', 'Resumo periódico'
         DM = 'dm', 'DM recebida'
 
@@ -238,6 +247,22 @@ class DiscordMessage(models.Model):
     def __str__(self):
         who = self.person.name if self.person else (self.discord_id or 'desconhecido')
         return f'{self.direction} · {who}'
+
+
+class DiscordAttachment(models.Model):
+    """Media (image / video / GIF) someone sent the bot in a DM. Discord's own
+    CDN links expire, so the backend keeps a copy; `source_url` is the fallback
+    if that copy couldn't be made."""
+
+    message = models.ForeignKey(DiscordMessage, on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField(upload_to='discord/', storage=get_reference_storage, blank=True, null=True, max_length=255)
+    source_url = models.URLField(max_length=1000, blank=True)
+    name = models.CharField(max_length=255, blank=True)
+    kind = models.CharField(max_length=10, default='file')  # image | video | file
+    is_gif = models.BooleanField(default=False)  # a looping clip: play it muted, on repeat
+
+    class Meta:
+        ordering = ['id']
 
 
 class Reference(models.Model):
