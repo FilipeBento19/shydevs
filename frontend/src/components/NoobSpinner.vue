@@ -59,7 +59,7 @@ onMounted(async () => {
     model.position.sub(new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3()))
     const pivot = new THREE.Group()
     pivot.add(model)
-    pivot.rotation.y = Math.PI + START_YAW
+    pivot.rotation.y = START_YAW
     scene.add(pivot)
 
     const half = 3.0
