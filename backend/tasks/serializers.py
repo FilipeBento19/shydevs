@@ -116,9 +116,21 @@ class RoleSerializer(serializers.ModelSerializer):
 
 
 class SubtaskSerializer(serializers.ModelSerializer):
+    done_by = serializers.SerializerMethodField()
+    my_done = serializers.SerializerMethodField()
+
     class Meta:
         model = Subtask
-        fields = ['id', 'task', 'title', 'done', 'order']
+        fields = ['id', 'task', 'title', 'done', 'order', 'done_by', 'my_done']
+
+    def get_done_by(self, obj):
+        """Ids of the people who finished this step (group tasks)."""
+        return [c.person_id for c in obj.completions.all()]
+
+    def get_my_done(self, obj):
+        request = self.context.get('request')
+        me = getattr(getattr(request, 'user', None), 'id', None)
+        return any(c.person_id == me for c in obj.completions.all())
 
 
 class ActivitySerializer(serializers.ModelSerializer):
@@ -234,6 +246,7 @@ class TaskSerializer(serializers.ModelSerializer):
     blocking = serializers.SerializerMethodField()
     participants = serializers.PrimaryKeyRelatedField(many=True, queryset=Person.objects.all(), required=False)
     participants_info = serializers.SerializerMethodField()
+    participants_progress = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -243,7 +256,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'checked', 'completion_note', 'created_at', 'subtasks', 'subtasks_done',
             'subtasks_total', 'attachments_total', 'references_total',
             'depends_on', 'depends_on_code', 'depends_on_title', 'blocked', 'blocking',
-            'kind', 'participants', 'participants_info',
+            'kind', 'participants', 'participants_info', 'participants_progress', 'participant_order',
         ]
         read_only_fields = ['project', 'code', 'created_at']
 
@@ -280,6 +293,7 @@ class TaskSerializer(serializers.ModelSerializer):
         kind = attrs.get('kind', instance.kind if instance else 'solo')
         if kind == 'solo':
             attrs['participants'] = []
+            attrs['participant_order'] = []
             return
         people = attrs.get('participants', list(instance.participants.all()) if instance else [])
         if len(people) < 2:
@@ -288,9 +302,25 @@ class TaskSerializer(serializers.ModelSerializer):
         if project_id and any(p.project_id != project_id for p in people):
             raise serializers.ValidationError({'participants': 'Há pessoas de outro projeto.'})
         attrs['participants'] = people
+        if 'participant_order' in attrs:
+            ids = {p.id for p in people} | {getattr(attrs.get('assignee', instance.assignee if instance else None), 'id', None)}
+            order = list(dict.fromkeys(attrs['participant_order']))
+            if any(i not in ids for i in order):
+                raise serializers.ValidationError({'participant_order': 'A ordem tem alguém que não está na tarefa.'})
+            attrs['participant_order'] = order
         # The lead stays the current assignee if they're still in the group.
         current = attrs.get('assignee', instance.assignee if instance else None)
         attrs['assignee'] = current if current in people else people[0]
+
+    def get_participants_progress(self, obj):
+        """How many checklist steps each group member has finished."""
+        if obj.kind != 'group':
+            return []
+        steps = list(obj.subtasks.all())
+        return [
+            {'id': p.id, 'name': p.name, 'done': sum(1 for s in steps if any(c.person_id == p.id for c in s.completions.all())), 'total': len(steps)}
+            for p in obj.ordered_people()
+        ]
 
     def get_participants_info(self, obj):
         request = self.context.get('request')
@@ -299,7 +329,7 @@ class TaskSerializer(serializers.ModelSerializer):
                 'id': p.id, 'name': p.name,
                 'photo': (request.build_absolute_uri(p.photo.url) if request else p.photo.url) if p.photo else None,
             }
-            for p in obj.participants.all()
+            for p in obj.ordered_people()
         ]
 
     def get_blocked(self, obj):
@@ -328,11 +358,20 @@ class TaskSerializer(serializers.ModelSerializer):
         participants = validated_data.pop('participants', None)
         instance._activity_actor = self._actor()
         before = {p.id for p in instance.participants.all()}
+        was_group, previous_lead = instance.kind == 'group', instance.assignee_id
         for k, v in validated_data.items():
             setattr(instance, k, v)
         instance.save()
         if participants is not None:
             instance.participants.set(participants)
+        if participants is not None or (instance.kind == 'group') != was_group:
+            if instance.participant_order:  # keep the turn order in step with who is in the group
+                ids = [p.id for p in instance.people()]
+                kept = [i for i in instance.participant_order if i in ids]
+                instance.participant_order = kept + [i for i in ids if i not in kept] if kept else []
+                instance.save(update_fields=['participant_order'])
+            instance.resync_checklist(was_group=was_group, previous_lead_id=previous_lead)
+        if participants is not None:
             if {p.id for p in participants} != before:
                 Activity.objects.create(
                     task=instance, actor=self._actor(), event_type=Activity.EventType.TASK_ASSIGNED,

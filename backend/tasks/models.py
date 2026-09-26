@@ -129,6 +129,10 @@ class Task(models.Model):
     # `participants`; `assignee` then holds the first of them (the "lead"),
     # which keeps everything keyed on the assignee working.
     kind = models.CharField(max_length=10, choices=[('solo', 'Solo'), ('group', 'Em grupo')], default='solo')
+    # Optional turn order for a group task: person ids, first to last. Empty = everyone
+    # works at the same time. With an order, someone can only tick a step after the
+    # person before them has (e.g. animator, then scripter, then VFX).
+    participant_order = models.JSONField(default=list, blank=True)
     participants = models.ManyToManyField(Person, blank=True, related_name='group_tasks')
     # This task can't be started until `depends_on` is done ("Concluída").
     depends_on = models.ForeignKey(
@@ -139,11 +143,29 @@ class Task(models.Model):
         ordering = ['-created_at']
         unique_together = [('project', 'code')]
 
+    def resync_checklist(self, was_group=False, previous_lead_id=None):
+        """Bring every step's `done` in line after the group changed (people
+        added/removed, or the task switching between solo and group)."""
+        for step in self.subtasks.prefetch_related('completions'):
+            if self.kind == 'group':
+                if not was_group and step.done and previous_lead_id:
+                    # solo -> group: whoever had it ticked keeps the credit
+                    SubtaskCompletion.objects.get_or_create(subtask=step, person_id=previous_lead_id)
+                    step = Subtask.objects.prefetch_related('completions').get(pk=step.pk)
+                step.task = self
+                step.sync_done()
+
     def people(self):
         """Everyone working on this task: the assignee plus any group participants."""
         found = [self.assignee] if self.assignee_id else []
         found += [p for p in self.participants.all() if p.id != self.assignee_id]
         return found
+
+    def ordered_people(self):
+        """`people()` sorted by the turn order (unlisted people go last)."""
+        rank = {pid: i for i, pid in enumerate(self.participant_order or [])}
+        people = self.people()
+        return sorted(people, key=lambda p: rank.get(p.id, len(rank)))
 
     def has_member(self, person_id):
         return bool(person_id) and (
@@ -168,6 +190,9 @@ class Task(models.Model):
 class Subtask(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='subtasks')
     title = models.CharField(max_length=200)
+    # Solo task: the step is done or not. Group task: every participant has to do
+    # the whole checklist, so `done` is derived (all of them completed it) and the
+    # per-person state lives in SubtaskCompletion.
     done = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -177,6 +202,28 @@ class Subtask(models.Model):
 
     def __str__(self):
         return self.title
+
+    def sync_done(self):
+        """Recompute `done` from who completed it (group tasks only)."""
+        if self.task.kind != 'group':
+            return
+        finished = {c.person_id for c in self.completions.all()}
+        everyone = {p.id for p in self.task.people()}
+        done = bool(everyone) and everyone <= finished
+        if done != self.done:
+            self.done = done
+            Subtask.objects.filter(pk=self.pk).update(done=done)  # no save(): avoids a second history entry
+
+
+class SubtaskCompletion(models.Model):
+    """One person finishing one checklist step of a group task."""
+
+    subtask = models.ForeignKey(Subtask, on_delete=models.CASCADE, related_name='completions')
+    person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='subtask_completions')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('subtask', 'person')]
 
 
 class Activity(models.Model):
@@ -244,6 +291,7 @@ class DiscordMessage(models.Model):
         IN_PROGRESS_REMINDER = 'in_progress_reminder', 'Lembrete: presa em Em andamento'
         DUE_SOON_REMINDER = 'due_soon_reminder', 'Lembrete: prazo chegando'
         UNBLOCKED = 'unblocked', 'Aviso: tarefa liberada'
+        YOUR_TURN = 'your_turn', 'Aviso: sua vez na tarefa'
         DIGEST = 'digest', 'Resumo periódico'
         DM = 'dm', 'DM recebida'
 

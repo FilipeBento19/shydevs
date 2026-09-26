@@ -224,19 +224,90 @@ async function addSubtask() {
     error.value = 'Não foi possível adicionar a subtarefa.'
   }
 }
-async function toggleSubtask(st) {
-  if (!canToggleChecklist.value) return
-  const next = !st.done
-  st.done = next
+// In a group task everyone does the whole checklist: a member ticks for themselves,
+// an admin outside the group for everyone. `st.done` then means "everyone finished".
+const isGroup = computed(() => task.value?.kind === 'group')
+const isMember = computed(() => !!task.value?.participants?.includes(auth.state.person?.id))
+function stepChecked(st) {
+  return isGroup.value && isMember.value ? st.my_done : st.done
+}
+const groupProgress = computed(() => (task.value?.participants_info || []).map((p) => ({
+  ...p,
+  done: subtasks.value.filter((s) => (s.done_by || []).includes(p.id)).length,
+  total: subtasks.value.length,
+})))
+// ---- turn order (group tasks): who has to finish a step before whom ----
+const order = computed(() => task.value?.participant_order || [])
+const myPos = computed(() => order.value.indexOf(auth.state.person?.id))
+const nameOf = (id) => task.value?.participants_info?.find((p) => p.id === id)?.name || '?'
+// Why this step can't be ticked (or unticked) by me right now, or ''.
+function lockReason(st) {
+  if (!isGroup.value || !isMember.value || !order.value.length || myPos.value < 0) return ''
+  const by = st.done_by || []
+  if (!st.my_done && myPos.value > 0 && !by.includes(order.value[myPos.value - 1])) return `Aguardando ${nameOf(order.value[myPos.value - 1])} concluir esta etapa`
+  if (st.my_done && order.value.slice(myPos.value + 1).some((id) => by.includes(id))) return 'Quem vem depois de você já concluiu esta etapa'
+  return ''
+}
+
+const stepMenuOpen = ref(false)
+const orderEditing = ref(false)
+const orderDraft = ref([])
+const orderSaving = ref(false)
+function startOrder() {
+  stepMenuOpen.value = false
+  orderDraft.value = order.value.length ? [...order.value] : (task.value.participants_info || []).map((p) => p.id)
+  orderEditing.value = true
+}
+function moveDraft(index, delta) {
+  const to = index + delta
+  if (to < 0 || to >= orderDraft.value.length) return
+  const next = [...orderDraft.value]
+  ;[next[index], next[to]] = [next[to], next[index]]
+  orderDraft.value = next
+}
+async function saveOrder(ids) {
+  orderSaving.value = true
   try {
-    await api.updateSubtask(st.id, { done: next })
+    const updated = await api.updateTask(task.value.id, { participant_order: ids })
+    task.value.participant_order = updated.participant_order
+    task.value.participants_info = updated.participants_info
+    task.value.participants_progress = updated.participants_progress
+    orderEditing.value = false
+    stepMenuOpen.value = false
+    refreshActivities()
+  } catch (e) {
+    error.value = e.message || 'Não foi possível salvar a ordem.'
+  } finally {
+    orderSaving.value = false
+  }
+}
+function clearOrder() {
+  saveOrder([])
+}
+
+function finishers(st) {
+  return (task.value?.participants_info || []).filter((p) => (st.done_by || []).includes(p.id))
+}
+
+async function toggleSubtask(st) {
+  if (!canToggleChecklist.value || lockReason(st)) return
+  const next = !stepChecked(st)
+  const snapshot = { done: st.done, my_done: st.my_done, done_by: st.done_by }
+  if (isGroup.value) {
+    if (isMember.value) st.my_done = next
+  } else {
+    st.done = next
+  }
+  try {
+    const updated = await api.updateSubtask(st.id, { done: next })
+    if (isGroup.value) Object.assign(st, { done: updated.done, my_done: updated.my_done, done_by: updated.done_by })
     // The server moves a pending task to "Em andamento" on the first checked step.
     if (next && task.value.status === 'Pendente') {
       task.value.status = 'Em andamento'
       form.status = 'Em andamento'
     }
   } catch (e) {
-    st.done = !next
+    Object.assign(st, snapshot)
   }
 }
 async function removeSubtask(st) {
@@ -401,14 +472,59 @@ function setQuickDate(offsetDays) {
           </div>
 
           <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px;">
-            <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+            <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
               Checklist do que fazer
-              <span style="font-weight:500; color:#8b899f; font-size:11px;">{{ subtasks.filter(s => s.done).length }}/{{ subtasks.length }}</span>
+              <span style="display:inline-flex; align-items:center; gap:6px;">
+                <span style="font-weight:500; color:#8b899f; font-size:11px;">{{ subtasks.filter(s => s.done).length }}/{{ subtasks.length }}</span>
+                <span v-if="canEdit && isGroup" class="dots-wrap">
+                  <button type="button" class="dots-btn" aria-haspopup="menu" :aria-expanded="stepMenuOpen" aria-label="Opções do checklist" @click="stepMenuOpen = !stepMenuOpen" @keydown.esc="stepMenuOpen = false" @blur="stepMenuOpen = false">
+                    <i class="fi fi-sr-menu-dots-vertical" aria-hidden="true"></i>
+                  </button>
+                  <div v-if="stepMenuOpen" class="dots-menu" role="menu" @mousedown.prevent>
+                    <button type="button" role="menuitem" @click="startOrder"><i class="fi fi-sr-sort-amount-down" aria-hidden="true"></i>Definir quem faz primeiro</button>
+                    <button v-if="order.length" type="button" role="menuitem" @click="clearOrder"><i class="fi fi-sr-cross-small" aria-hidden="true"></i>Todos ao mesmo tempo</button>
+                  </div>
+                </span>
+              </span>
+            </div>
+
+            <div v-if="orderEditing" class="order-editor">
+              <div class="oe-title">Ordem de quem faz</div>
+              <div class="oe-hint">Cada um só pode marcar uma etapa depois de quem vem antes. O de cima começa; o próximo recebe um aviso no Discord quando o anterior termina.</div>
+              <ol>
+                <li v-for="(id, i) in orderDraft" :key="id">
+                  <b>{{ i + 1 }}</b><span>{{ nameOf(id) }}</span>
+                  <button type="button" :disabled="i === 0" :aria-label="`Subir ${nameOf(id)}`" @click="moveDraft(i, -1)"><i class="fi fi-sr-angle-small-up" aria-hidden="true"></i></button>
+                  <button type="button" :disabled="i === orderDraft.length - 1" :aria-label="`Descer ${nameOf(id)}`" @click="moveDraft(i, 1)"><i class="fi fi-sr-angle-small-down" aria-hidden="true"></i></button>
+                </li>
+              </ol>
+              <div class="oe-actions">
+                <button type="button" class="oe-save" :disabled="orderSaving" @click="saveOrder(orderDraft)">{{ orderSaving ? 'Salvando…' : 'Salvar ordem' }}</button>
+                <button type="button" @click="orderEditing = false">Cancelar</button>
+              </div>
+            </div>
+            <div v-else-if="isGroup && order.length" class="order-strip" aria-label="Ordem de execução">
+              <i class="fi fi-sr-sort-amount-down" aria-hidden="true"></i>
+              <template v-for="(p, i) in task.participants_info" :key="p.id"><span><b>{{ i + 1 }}</b> {{ p.name }}</span><i v-if="i < task.participants_info.length - 1" class="fi fi-sr-angle-small-right sep" aria-hidden="true"></i></template>
+            </div>
+            <div v-if="isGroup && subtasks.length" class="group-progress" aria-label="Progresso de cada pessoa no checklist">
+              <div class="gp-hint">Todos fazem o mesmo checklist. Cada um marca as etapas que concluiu.</div>
+              <div v-for="p in groupProgress" :key="p.id" class="gp-line">
+                <AssigneeAvatar :photo="p.photo" :color="roleColor(task.role)" :size="20" />
+                <span class="gp-name">{{ p.name }}<em v-if="p.id === auth.state.person?.id"> (você)</em></span>
+                <span class="gp-bar"><i :style="{ width: (p.total ? (p.done / p.total) * 100 : 0) + '%' }" :class="{ full: p.total && p.done === p.total }"></i></span>
+                <span class="gp-num">{{ p.done }}/{{ p.total }}</span>
+              </div>
             </div>
             <TransitionGroup tag="div" @enter="listEnter" @leave="listLeave" :css="false" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
               <div v-for="(st, i) in subtasks" :key="st.id" :data-index="i" :style="{ display: 'flex', alignItems: 'center', gap: '8px', background: canToggleChecklist ? '#0e0e14' : '#131319', border: '1px solid #22222f', borderRadius: '8px', padding: '8px 10px' }">
-                <Checkbox :model-value="st.done" :disabled="!canToggleChecklist" @update:model-value="toggleSubtask(st)" :aria-label="`Marcar etapa: ${st.title}`" />
+                <Checkbox :model-value="stepChecked(st)" :disabled="!canToggleChecklist || !!lockReason(st)" :title="lockReason(st)" @update:model-value="toggleSubtask(st)" :aria-label="`Marcar etapa: ${st.title}`" />
+                <i v-if="lockReason(st)" class="fi fi-sr-lock step-lock" :title="lockReason(st)" aria-hidden="true"></i>
                 <span :style="{ flex: 1, fontSize: '12.5px', color: st.done || !canToggleChecklist ? '#8f8da8' : '#e4e2f1', textDecoration: st.done ? 'line-through' : 'none' }">{{ st.title }}</span>
+                <span v-if="isGroup" class="step-who" :title="finishers(st).length ? 'Concluíram: ' + finishers(st).map((p) => p.name).join(', ') : 'Ninguém concluiu ainda'">
+                  <AssigneeAvatar v-for="p in finishers(st).slice(0, 3)" :key="p.id" :photo="p.photo" :color="roleColor(task.role)" :size="18" />
+                  <small :class="{ full: st.done }">{{ finishers(st).length }}/{{ task.participants_info.length }}</small>
+                </span>
                 <button v-if="canEdit" type="button" @click="removeSubtask(st)" :aria-label="`Remover etapa: ${st.title}`" style="border:none; background:transparent; color:#8f8da8; cursor:pointer; font-size:12px;"><i class="fi fi-sr-cross-small" aria-hidden="true"></i></button>
               </div>
             </TransitionGroup>
@@ -458,6 +574,41 @@ function setQuickDate(offsetDays) {
 </template>
 
 <style scoped>
+.dots-wrap { position: relative; display: inline-flex; }
+.dots-btn { width: 24px; height: 24px; display: inline-grid; place-items: center; border: none; border-radius: 6px; background: transparent; color: #8b899f; font-size: 13px; cursor: pointer; }
+.dots-btn:hover, .dots-btn:focus-visible { background: #1c1c28; color: #fff; outline: none; }
+.dots-menu { position: absolute; right: 0; top: 28px; z-index: 20; min-width: 210px; padding: 4px; border-radius: 10px; background: #14141d; border: 1px solid #26263a; box-shadow: 0 12px 30px rgba(0, 0, 0, .5); display: flex; flex-direction: column; }
+.dots-menu button { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: none; border-radius: 7px; background: transparent; color: #c7c5dc; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer; white-space: nowrap; }
+.dots-menu button:hover, .dots-menu button:focus-visible { background: #1c1c28; color: #fff; outline: none; }
+.order-editor { margin-bottom: 12px; padding: 12px; border-radius: 10px; background: #0e0e14; border: 1px solid #7c6fff55; }
+.oe-title { font-size: 12.5px; font-weight: 800; color: #f5f4fb; }
+.oe-hint { margin: 3px 0 10px; font-size: 11px; line-height: 1.45; color: #8b899f; }
+.order-editor ol { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 5px; }
+.order-editor li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: #14141d; border: 1px solid #22222f; font-size: 12.5px; color: #e4e2f1; }
+.order-editor li b { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: rgba(124, 111, 255, .2); color: #cfc9ff; font-size: 11px; }
+.order-editor li span { flex: 1; font-weight: 600; }
+.order-editor li button { width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid #26263a; border-radius: 7px; background: #0e0e14; color: #c7c5dc; cursor: pointer; }
+.order-editor li button:disabled { opacity: .3; cursor: default; }
+.oe-actions { display: flex; gap: 8px; }
+.oe-actions button { padding: 7px 12px; border-radius: 8px; border: 1px solid #26263a; background: #14141d; color: #c7c5dc; font-size: 12px; font-weight: 700; cursor: pointer; }
+.oe-actions .oe-save { background: #7c6fff; border-color: #7c6fff; color: #0a0a10; }
+.order-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; padding: 8px 10px; border-radius: 9px; background: rgba(124, 111, 255, .09); border: 1px solid rgba(124, 111, 255, .25); font-size: 11.5px; color: #cfc9ff; }
+.order-strip b { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: 2px; border-radius: 50%; background: rgba(124, 111, 255, .3); font-size: 10px; }
+.order-strip .sep { color: #65637a; }
+.step-lock { flex: none; color: #ffc46b; font-size: 11px; }
+.group-progress { display: grid; gap: 6px; margin-bottom: 12px; padding: 10px 12px; border-radius: 10px; background: #0e0e14; border: 1px solid #22222f; }
+.gp-hint { font-size: 11px; color: #8b899f; margin-bottom: 2px; }
+.gp-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #c7c5dc; }
+.gp-name { flex: none; width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.gp-name em { font-style: normal; color: #b3aaff; font-weight: 500; }
+.gp-bar { flex: 1; height: 6px; border-radius: 6px; background: #1c1c28; overflow: hidden; }
+.gp-bar i { display: block; height: 100%; background: #7c6fff; border-radius: 6px; transition: width .25s ease; }
+.gp-bar i.full { background: #3fcf8e; }
+.gp-num { flex: none; font-size: 11px; font-weight: 700; color: #8b899f; font-variant-numeric: tabular-nums; }
+.step-who { display: inline-flex; align-items: center; flex: none; }
+.step-who > :deep(*) + :deep(*) { margin-left: -6px; }
+.step-who small { margin-left: 6px; font-size: 10.5px; font-weight: 700; color: #8b899f; }
+.step-who small.full { color: #3fcf8e; }
 .kind-row { display: inline-flex; gap: 6px; }
 .kind-row button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid #26263a; background: #0e0e14; color: #9a97b8; font-size: 11.5px; font-weight: 700; cursor: pointer; }
 .kind-row button.active { border-color: #7c6fff; background: rgba(124, 111, 255, .16); color: #f5f4fb; }

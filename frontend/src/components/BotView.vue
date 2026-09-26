@@ -12,6 +12,8 @@ const SOURCE_LABELS = {
   pending_reminder: 'Lembrete · parada em Pendente',
   in_progress_reminder: 'Lembrete · presa em Em andamento',
   due_soon_reminder: 'Lembrete · prazo chegando',
+  unblocked: 'Aviso · tarefa liberada',
+  your_turn: 'Aviso · sua vez na tarefa',
   digest: 'Resumo periódico',
   dm: 'Mensagem recebida',
 }

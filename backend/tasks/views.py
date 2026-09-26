@@ -18,7 +18,7 @@ from . import discord
 from .incoming_media import save_attachments
 from .models import (
     Activity, Attachment, AuthToken, Comment, DiscordMessage, Person, Priority, Project, Reference, Role,
-    Status, Subtask, Task,
+    Status, Subtask, SubtaskCompletion, Task,
 )
 from .serializers import (
     ActivitySerializer, AttachmentSerializer, CommentSerializer, DiscordMessageSerializer, PersonSerializer,
@@ -458,7 +458,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         return super().partial_update(request, *args, **kwargs)
 
     def get_queryset(self):
-        qs = Task.objects.select_related('assignee', 'depends_on').prefetch_related('subtasks', 'attachments', 'references', 'dependents', 'participants').all()
+        qs = Task.objects.select_related('assignee', 'depends_on').prefetch_related('subtasks__completions', 'attachments', 'references', 'dependents', 'participants').all()
         params = self.request.query_params
         user = self.request.user
 
@@ -641,7 +641,7 @@ class SubtaskViewSet(viewsets.ModelViewSet):
     permission_classes = [SubtaskPermission]
 
     def get_queryset(self):
-        qs = Subtask.objects.select_related('task').all()
+        qs = Subtask.objects.select_related('task').prefetch_related('completions').all()
         user = self.request.user
         if getattr(user, 'is_authenticated', False):
             qs = qs.filter(task__project_id=user.project_id)
@@ -659,7 +659,68 @@ class SubtaskViewSet(viewsets.ModelViewSet):
                 {'detail': 'Você só pode marcar ou desmarcar etapas da sua própria tarefa.'},
                 status=http_status.HTTP_403_FORBIDDEN,
             )
+        subtask = self.get_object()
+        if subtask.task.kind == 'group' and 'done' in request.data:
+            response = self._toggle_for_group(request, subtask, bool(request.data['done']))
+            rest = {k: v for k, v in request.data.items() if k != 'done'}
+            if rest:  # an admin editing the title etc. in the same request
+                serializer = self.get_serializer(subtask, data=rest, partial=True)
+                serializer.is_valid(raise_exception=True)
+                self.perform_update(serializer)
+                return Response(serializer.data)
+            return response
         return super().partial_update(request, *args, **kwargs)
+
+    def _toggle_for_group(self, request, subtask, done):
+        """In a group task each person ticks the step for themselves; an admin
+        who isn't in the group ticks it for everyone."""
+        task = subtask.task
+        me = request.user
+        people = [me] if task.has_member(me.id) else task.people()
+        order = [p.id for p in task.ordered_people()] if task.participant_order else []
+        if order and len(people) == 1 and me.id in order:
+            done_by = {c.person_id for c in subtask.completions.all()}
+            position = order.index(me.id)
+            names = {p.id: p.name for p in task.people()}
+            if done and position > 0 and order[position - 1] not in done_by:
+                raise PermissionDenied(f'Aguarde {names[order[position - 1]]} concluir esta etapa antes de você.')
+            if not done and any(later in done_by for later in order[position + 1:]):
+                raise PermissionDenied('Quem vem depois de você já concluiu esta etapa.')
+        for person in people:
+            if done:
+                SubtaskCompletion.objects.get_or_create(subtask=subtask, person=person)
+            else:
+                SubtaskCompletion.objects.filter(subtask=subtask, person=person).delete()
+        subtask = Subtask.objects.select_related('task').prefetch_related('completions').get(pk=subtask.pk)
+        before = subtask.done
+        subtask.sync_done()
+        Activity.objects.create(
+            task=task, actor=me, event_type=Activity.EventType.CHECKLIST, visibility=Activity.Visibility.ADMIN,
+            message=f'{me.name} {"marcou" if done else "desmarcou"} a etapa “{subtask.title}” em {task.code}.',
+            details={'etapa': subtask.title, 'concluída': done, 'todos concluíram': subtask.done},
+        )
+        if done and task.status == Status.PENDENTE and not task.is_blocked:
+            task._activity_actor = me
+            task.status = Status.EM_ANDAMENTO
+            task.save()
+        if done and order and me.id in order:
+            self._announce_next_turn(task, me, order)
+        return Response(self.get_serializer(subtask).data)
+
+    def _announce_next_turn(self, task, me, order):
+        """When someone finishes their whole checklist, tell whoever is next."""
+        steps = list(task.subtasks.all())
+        mine = SubtaskCompletion.objects.filter(subtask__task=task, person=me).count()
+        position = order.index(me.id)
+        if not steps or mine != len(steps) or position + 1 >= len(order):
+            return
+        nxt = next((p for p in task.people() if p.id == order[position + 1]), None)
+        if nxt:
+            discord.send_task_reminder_dm(
+                task, 'Sua vez!',
+                f'{nxt.name}, {me.name} terminou a parte dele(a) em {task.code}. Agora é com você.',
+                'your_turn', footer_note='Aviso automático', person=nxt,
+            )
 
     def perform_create(self, serializer):
         instance = Subtask(**serializer.validated_data)

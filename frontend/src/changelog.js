@@ -2,6 +2,13 @@
 // first entry's version: add a new entry (and bump the version) with every push.
 export const releases = [
   {
+    version: '24.10',
+    items: [
+      'Checklist de tarefa em grupo: todos fazem o mesmo checklist e cada pessoa marca as suas etapas. Uma etapa só conta como feita quando todos terminam, e dá para ver quem já concluiu cada uma.',
+      'Menu ⋮ no checklist para definir quem faz primeiro (ex.: animador, depois scripter, depois VFX). Cada um só marca uma etapa depois de quem vem antes, e o próximo recebe uma DM "Sua vez!" no Discord.',
+    ],
+  },
+  {
     version: '24.9',
     items: [
       'Novo tipo de tarefa: em grupo. Ao atribuir uma tarefa, escolha no topo entre solo ou em grupo, e no grupo selecione várias pessoas ou cargos inteiros.',
