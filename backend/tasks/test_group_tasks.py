@@ -111,3 +111,42 @@ class DmSafetyNetTests(TestCase):
             self.assertFalse(discord._dm_allowed('3'))
         with mock.patch.dict('os.environ', {'DISCORD_DM_ONLY_IDS': ''}):
             self.assertTrue(discord._dm_allowed('anyone'))
+
+
+class ClassicEmbedFallbackTests(TestCase):
+    def payload(self):
+        from . import discord
+        return {
+            'username': 'ShyDevs', 'flags': discord.IS_COMPONENTS_V2,
+            'allowed_mentions': {'parse': [], 'users': ['1']},
+            'attachments': [{'id': 0, 'filename': 'b.png'}],
+            'components': [{'type': discord.CONTAINER, 'components': [
+                {'type': discord.MEDIA_GALLERY, 'items': [{'media': {'url': 'attachment://b.png'}}]},
+                {'type': discord.TEXT_DISPLAY, 'content': '<@1> <@2>'},
+                {'type': discord.TEXT_DISPLAY, 'content': '**Título**'},
+                {'type': discord.TEXT_DISPLAY, 'content': 'detalhe'},
+                {'type': discord.SEPARATOR, 'divider': True, 'spacing': 1},
+                {'type': discord.TEXT_DISPLAY, 'content': 'rodapé'},
+            ]}],
+        }
+
+    def test_v2_card_becomes_a_classic_embed_with_mentions_in_content(self):
+        from . import discord
+        out = discord._compat(self.payload())
+        self.assertNotIn('flags', out)
+        self.assertNotIn('components', out)
+        self.assertEqual(out['content'], '<@1> <@2>')
+        self.assertEqual(out['embeds'][0]['description'], '**Título**\n\ndetalhe\n\nrodapé')
+        self.assertEqual(out['embeds'][0]['image'], {'url': 'attachment://b.png'})
+        self.assertEqual(out['attachments'], [{'id': 0, 'filename': 'b.png'}])
+
+    def test_env_switch_keeps_components_v2(self):
+        from unittest import mock
+        from . import discord
+        with mock.patch.dict('os.environ', {'DISCORD_COMPONENTS_V2': '1'}):
+            self.assertIn('components', discord._compat(self.payload()))
+
+    def test_plain_payloads_pass_through(self):
+        from . import discord
+        plain = {'content': 'oi'}
+        self.assertEqual(discord._compat(plain), plain)

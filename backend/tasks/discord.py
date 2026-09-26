@@ -15,6 +15,7 @@ caller saw no error.
 """
 import json
 import os
+import re
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -161,6 +162,39 @@ def _text(content):
     return {'type': TEXT_DISPLAY, 'content': content}
 
 
+_MENTIONS_ONLY = re.compile(r'^(<@\d+>\s*)+$')
+
+
+def _compat(payload):
+    """Components V2 messages render as an empty message on Discord clients that
+    don't support them (older mobile apps), so by default every card is sent as
+    a classic embed instead, which shows everywhere. Mentions move to `content`,
+    which is also what mobile push notifications preview. Set
+    DISCORD_COMPONENTS_V2=1 to send the Components V2 cards as built."""
+    if os.environ.get('DISCORD_COMPONENTS_V2') == '1' or not (payload.get('flags', 0) & IS_COMPONENTS_V2):
+        return payload
+    parts, mentions, image = [], [], None
+    for container in payload.get('components', []):
+        for child in container.get('components', []):
+            kind = child.get('type')
+            if kind == MEDIA_GALLERY and image is None:
+                image = child['items'][0]['media']['url']
+            elif kind == TEXT_DISPLAY:
+                text = child['content'].strip()
+                if _MENTIONS_ONLY.match(text):
+                    mentions.append(text)
+                else:
+                    parts.append(text)
+    embed = {'description': '\n\n'.join(parts)[:4096], 'color': 0x2B2D31}  # same shade as the embed background: no visible stripe
+    if image:
+        embed['image'] = {'url': image}
+    classic = {k: v for k, v in payload.items() if k not in ('flags', 'components')}
+    classic['embeds'] = [embed]
+    if mentions:
+        classic['content'] = ' '.join(mentions)
+    return classic
+
+
 def _standard_footer(project_name='Slayer Reborn', moment=None, note=None):
     moment = (moment or datetime.now(timezone.utc)).astimezone(BRASILIA)
     site_url = (os.environ.get('FRONTEND_URL') or DEFAULT_FRONTEND_URL).rstrip('/')
@@ -296,6 +330,7 @@ def send_digest_dm(person, stats):
 
 
 def _post_webhook(webhook_url, payload, banner_path=None):
+    payload = _compat(payload)
     try:
         # Discord's incoming-webhook endpoint silently rejects a Components V2
         # payload ("Cannot send an empty message") unless this query param is
@@ -365,6 +400,7 @@ def _send_dm(discord_id, payload, banner_path=None):
     headers = _bot_headers()
     if not headers:
         return
+    payload = _compat(payload)
     try:
         channel_id = _open_dm_channel(headers, discord_id)
         url = f'{BOT_API_BASE}/channels/{channel_id}/messages'
@@ -431,6 +467,7 @@ def send_verification_confirmation_dm(discord_id, person=None):
             ],
         }],
     }
+    payload = _compat(payload)
     try:
         channel_id = _open_dm_channel(headers, discord_id)
         resp = requests.post(
@@ -488,6 +525,7 @@ def send_unverified_webhook(discord_ids, project_name='ShyDevs', test=False):
     }
     if banner_filename:
         payload['attachments'] = [{'id': 0, 'filename': banner_filename}]
+    payload = _compat(payload)
     try:
         url = f'{webhook_url}?with_components=true'
         if banner_filename:

@@ -2,6 +2,12 @@
 // first entry's version: add a new entry (and bump the version) with every push.
 export const releases = [
   {
+    version: '24.12',
+    items: [
+      'Os avisos do bot no Discord agora usam embeds clássicos e aparecem em qualquer celular (antes ficavam invisíveis em apps desatualizados). As marcações também aparecem na notificação.',
+    ],
+  },
+  {
     version: '24.11',
     items: [
       'Quem participa de uma tarefa em grupo agora aparece nela em "Minhas tarefas", no filtro por pessoa e na busca, e a tarefa conta nos cargos de todos os participantes.',
