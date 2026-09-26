@@ -252,6 +252,8 @@ def _log_outgoing(person, discord_id, source, content):
     the webhook channel notifications are a separate, unlogged system.
     Never lets a logging failure take down the actual send."""
     from .models import DiscordMessage
+    if not _dm_allowed(discord_id):
+        return  # it wasn't actually sent, so it doesn't belong in the history
     try:
         DiscordMessage.objects.create(
             project=person.project if person else None,
@@ -327,7 +329,17 @@ _dm_channel_cache = {}
 _dm_channel_lock = threading.Lock()
 
 
+def _dm_allowed(discord_id):
+    """Local safety net: when DISCORD_DM_ONLY_IDS (comma-separated Discord IDs)
+    is set, the bot DMs only those IDs, so testing never messages the team.
+    Unset (production) means everyone."""
+    only = [i.strip() for i in os.environ.get('DISCORD_DM_ONLY_IDS', '').split(',') if i.strip()]
+    return not only or str(discord_id).strip() in only
+
+
 def _open_dm_channel(headers, discord_id):
+    if not _dm_allowed(discord_id):
+        raise requests.ConnectionError('DM bloqueada: DISCORD_DM_ONLY_IDS não inclui este ID')
     # Discord's create-DM-channel endpoint is idempotent (repeat calls for
     # the same recipient return the same channel) but errors with a 400
     # under concurrency — several reminders firing for the same person at

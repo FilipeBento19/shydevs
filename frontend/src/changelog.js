@@ -2,6 +2,12 @@
 // first entry's version: add a new entry (and bump the version) with every push.
 export const releases = [
   {
+    version: '24.11',
+    items: [
+      'Quem participa de uma tarefa em grupo agora aparece nela em "Minhas tarefas", no filtro por pessoa e na busca, e a tarefa conta nos cargos de todos os participantes.',
+    ],
+  },
+  {
     version: '24.10',
     items: [
       'Checklist de tarefa em grupo: todos fazem o mesmo checklist e cada pessoa marca as suas etapas. Uma etapa só conta como feita quando todos terminam, e dá para ver quem já concluiu cada uma.',

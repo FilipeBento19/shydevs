@@ -100,3 +100,14 @@ class GroupReminderTests(TestCase):
         other = Task.objects.create(project=self.project, title='Outra', role='Dev', kind='group', assignee=self.ana, status=Status.EM_ANDAMENTO)
         other.participants.set([self.ana, self.bia])
         self.assertEqual(self.run_reminders(), [])
+
+
+class DmSafetyNetTests(TestCase):
+    def test_dms_limited_to_the_allowed_ids_when_configured(self):
+        from unittest import mock
+        from . import discord
+        with mock.patch.dict('os.environ', {'DISCORD_DM_ONLY_IDS': '1, 2'}):
+            self.assertTrue(discord._dm_allowed('2'))
+            self.assertFalse(discord._dm_allowed('3'))
+        with mock.patch.dict('os.environ', {'DISCORD_DM_ONLY_IDS': ''}):
+            self.assertTrue(discord._dm_allowed('anyone'))

@@ -149,17 +149,30 @@ function onKeydown(e) {
 }
 defineExpose({ focusSearch: () => searchInputRef.value?.focus() })
 
+// Group tasks belong to everyone taking part: they show up under each participant's
+// name, in "Minhas tarefas", and under each of their cargos (not just the task's own).
+const rolesByPerson = computed(() => Object.fromEntries(people.value.map((p) => [p.id, p.roles || []])))
+function taskRoles(t) {
+  const found = new Set([t.role])
+  for (const p of t.participants_info || []) (rolesByPerson.value[p.id] || []).forEach((r) => found.add(r))
+  return found
+}
+function involves(t, person) {
+  if (t.assignee_name === person.name) return true
+  return (t.participants_info || []).some((p) => p.id === person.id)
+}
+
 const filteredTasks = computed(() => {
   const q = filters.query.trim().toLowerCase()
   return tasks.value.filter((t) => {
-    if (myTasksOnly.value && auth.state.person && t.assignee_name !== auth.state.person.name) return false
-    if (filters.role !== 'Todos' && t.role !== filters.role) return false
-    if (filters.person !== 'Todos' && t.assignee_name !== filters.person) return false
+    if (myTasksOnly.value && auth.state.person && !involves(t, auth.state.person)) return false
+    if (filters.role !== 'Todos' && !taskRoles(t).has(filters.role)) return false
+    if (filters.person !== 'Todos' && !involves(t, people.value.find((p) => p.name === filters.person) || { name: filters.person })) return false
     if (filters.prio !== 'Todas' && t.priority !== filters.prio) return false
     if (filters.status === 'Atrasadas' && !isLate(t)) return false
     if (filters.status !== 'Todas' && filters.status !== 'Atrasadas' && t.status !== filters.status) return false
     if (q) {
-      const haystack = `${t.title} ${t.description} ${t.assignee_name || ''} ${t.role} ${t.code}`.toLowerCase()
+      const haystack = `${t.title} ${t.description} ${t.assignee_name || ''} ${(t.participants_info || []).map((p) => p.name).join(' ')} ${t.role} ${t.code}`.toLowerCase()
       if (!haystack.includes(q)) return false
     }
     return true
@@ -168,7 +181,7 @@ const filteredTasks = computed(() => {
 
 const roleCounts = computed(() => {
   const map = {}
-  for (const r of roles.value) map[r.name] = tasks.value.filter((t) => t.role === r.name).length
+  for (const r of roles.value) map[r.name] = tasks.value.filter((t) => taskRoles(t).has(r.name)).length
   return map
 })
 
