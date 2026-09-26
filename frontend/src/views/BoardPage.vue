@@ -193,7 +193,7 @@ const prioFilterOptions = [
 
 // ---- selection & bulk actions ----
 function canSelect(task) {
-  return canEdit.value || task.assignee === auth.state.person?.id
+  return canEdit.value || task.assignee === auth.state.person?.id || !!task.participants?.includes(auth.state.person?.id)
 }
 const selectableTasks = computed(() => filteredTasks.value.filter(canSelect))
 

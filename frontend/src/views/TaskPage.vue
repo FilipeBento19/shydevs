@@ -13,6 +13,7 @@ import AttachmentsPanel from '../components/AttachmentsPanel.vue'
 import CommentsPanel from '../components/CommentsPanel.vue'
 import BackButton from '../components/BackButton.vue'
 import AssigneeAvatar from '../components/AssigneeAvatar.vue'
+import GroupPicker from '../components/GroupPicker.vue'
 import Checkbox from '../components/Checkbox.vue'
 import SlidingTabs from '../components/SlidingTabs.vue'
 import ReferencesPanel from '../components/ReferencesPanel.vue'
@@ -30,12 +31,15 @@ const loading = ref(true)
 const notFound = ref(false)
 
 const canEdit = computed(() => !!auth.state.person?.is_admin)
-const isOwner = computed(() => !canEdit.value && task.value?.assignee === auth.state.person?.id)
+const isOwner = computed(() => {
+  const me = auth.state.person?.id
+  return !canEdit.value && (task.value?.assignee === me || !!task.value?.participants?.includes(me))
+})
 const canEditStatus = computed(() => canEdit.value || isOwner.value)
 const canToggleChecklist = computed(() => canEdit.value || isOwner.value)
 
 const form = reactive({
-  title: '', description: '', role: '', assignee: null, due_date: '', priority: '', status: '', completion_note: '', depends_on: null,
+  title: '', description: '', role: '', assignee: null, due_date: '', priority: '', status: '', completion_note: '', depends_on: null, kind: 'solo', participants: [],
 })
 const saving = ref(false)
 const deleting = ref(false)
@@ -83,6 +87,8 @@ async function load() {
     form.priority = taskData.priority
     form.status = taskData.status
     form.depends_on = taskData.depends_on
+    form.kind = taskData.kind || 'solo'
+    form.participants = [...(taskData.participants || [])]
     form.completion_note = taskData.completion_note || ''
   } catch (e) {
     if (e.status === 404) notFound.value = true
@@ -143,6 +149,10 @@ async function refreshActivities() {
 async function save() {
   if (!canEditStatus.value) return
   error.value = ''
+  if (canEdit.value && form.kind === 'group' && form.participants.length < 2) {
+    error.value = 'Uma tarefa em grupo precisa de pelo menos 2 pessoas.'
+    return
+  }
   // Every checklist step is done: the work is finished, so saving means closing it out.
   if (allStepsDone.value && form.status !== 'Concluída') {
     error.value = 'Todas as etapas do checklist foram feitas. Marque a tarefa como Concluída e preencha a nota de conclusão para salvar.'
@@ -165,6 +175,9 @@ async function save() {
           status: form.status,
           completion_note: form.completion_note,
           depends_on: form.depends_on,
+          kind: form.kind,
+          participants: form.kind === 'group' ? form.participants : [],
+          ...(form.kind === 'group' ? { assignee: form.participants.includes(form.assignee) ? form.assignee : form.participants[0] } : {}),
         }
       : { status: form.status, completion_note: form.completion_note }
     const updated = await api.updateTask(task.value.id, payload)
@@ -318,12 +331,20 @@ function setQuickDate(offsetDays) {
                 <textarea id="task-desc" v-autogrow v-model="form.description" :disabled="!canEdit" rows="3" :style="{ width: '100%', boxSizing: 'border-box', border: '1px solid #26263a', background: canEdit ? '#0e0e14' : '#131319', borderRadius: '9px', padding: '10px 12px', fontSize: '12.5px', color: canEdit ? '#f5f4fb' : '#9a97b8', outline: 'none' }"></textarea>
               </div>
 
+              <div v-if="canEdit" class="kind-row" role="radiogroup" aria-label="Tipo de tarefa">
+                <button type="button" role="radio" :aria-checked="form.kind === 'solo'" :class="{ active: form.kind === 'solo' }" @click="form.kind = 'solo'"><i class="fi fi-sr-user" aria-hidden="true"></i>Solo</button>
+                <button type="button" role="radio" :aria-checked="form.kind === 'group'" :class="{ active: form.kind === 'group' }" @click="form.kind = 'group'"><i class="fi fi-sr-users" aria-hidden="true"></i>Em grupo</button>
+              </div>
+              <div v-if="form.kind === 'group'">
+                <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:8px;">Quem faz essa tarefa</div>
+                <GroupPicker v-model="form.participants" :people="people" :roles="roles" :disabled="!canEdit" />
+              </div>
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                 <div>
                   <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Cargo</div>
                   <CustomSelect v-model="form.role" :options="roleOptions" :disabled="!canEdit" width="100%" label="Cargo" />
                 </div>
-                <div>
+                <div v-if="form.kind !== 'group'">
                   <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Responsável</div>
                   <CustomSelect v-model="form.assignee" :options="assigneeOptions" :disabled="!canEdit" width="100%" label="Responsável" />
                 </div>
@@ -402,9 +423,13 @@ function setQuickDate(offsetDays) {
         <!-- right column: assignee card, attachments, history -->
         <div style="display:flex; flex-direction:column; gap:16px;">
           <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:16px; display:flex; align-items:center; gap:10px;">
-            <AssigneeAvatar :photo="task.assignee_photo" :color="roleColor(task.role)" :size="36" />
+            <div v-if="task.kind === 'group'" class="avatar-stack" aria-hidden="true">
+              <AssigneeAvatar v-for="p in task.participants_info.slice(0, 4)" :key="p.id" :photo="p.photo" :color="roleColor(task.role)" :size="36" />
+            </div>
+            <AssigneeAvatar v-else :photo="task.assignee_photo" :color="roleColor(task.role)" :size="36" />
             <div style="min-width:0;">
-              <div style="font-size:12.5px; font-weight:700; color:#f5f4fb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ task.assignee_name || 'Sem responsável' }}</div>
+              <div style="font-size:12.5px; font-weight:700; color:#f5f4fb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ task.kind === 'group' ? task.participants_info.map((p) => p.name).join(', ') : (task.assignee_name || 'Sem responsável') }}</div>
+              <div v-if="task.kind === 'group'" style="font-size:10.5px; font-weight:700; color:#b3aaff;"><i class="fi fi-sr-users" aria-hidden="true"></i> Tarefa em grupo · {{ task.participants_info.length }} pessoas</div>
               <div style="font-size:11px; color:#8b899f; display:flex; align-items:center; gap:4px;"><i :class="`fi ${roleIcon(task.role)}`" aria-hidden="true"></i>{{ task.role }}</div>
             </div>
           </div>
@@ -433,6 +458,12 @@ function setQuickDate(offsetDays) {
 </template>
 
 <style scoped>
+.kind-row { display: inline-flex; gap: 6px; }
+.kind-row button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid #26263a; background: #0e0e14; color: #9a97b8; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.kind-row button.active { border-color: #7c6fff; background: rgba(124, 111, 255, .16); color: #f5f4fb; }
+.kind-row button:focus-visible { outline: 2px solid #7c6fff; outline-offset: 1px; }
+.avatar-stack { display: flex; flex: none; }
+.avatar-stack > :deep(*) + :deep(*) { margin-left: -12px; box-shadow: -2px 0 0 #14141d; }
 .dep-banner { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; padding: 11px 14px; border-radius: 10px; font-size: 12.5px; line-height: 1.5; }
 .dep-banner i { margin-top: 2px; flex: none; }
 .dep-banner a { font-weight: 700; text-decoration: underline; }

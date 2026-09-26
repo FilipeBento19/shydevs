@@ -79,7 +79,7 @@ class TaskPermission(permissions.BasePermission):
         user = request.user
         if getattr(user, 'is_admin', False):
             return True
-        return request.method == 'PATCH' and obj.assignee_id == getattr(user, 'id', None)
+        return request.method == 'PATCH' and obj.has_member(getattr(user, 'id', None))
 
 
 class SubtaskPermission(permissions.BasePermission):
@@ -101,7 +101,7 @@ class SubtaskPermission(permissions.BasePermission):
         user = request.user
         if getattr(user, 'is_admin', False):
             return True
-        return request.method == 'PATCH' and obj.task.assignee_id == getattr(user, 'id', None)
+        return request.method == 'PATCH' and obj.task.has_member(getattr(user, 'id', None))
 
 
 class ProjectPermission(permissions.BasePermission):
@@ -458,7 +458,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         return super().partial_update(request, *args, **kwargs)
 
     def get_queryset(self):
-        qs = Task.objects.select_related('assignee', 'depends_on').prefetch_related('subtasks', 'attachments', 'references', 'dependents').all()
+        qs = Task.objects.select_related('assignee', 'depends_on').prefetch_related('subtasks', 'attachments', 'references', 'dependents', 'participants').all()
         params = self.request.query_params
         user = self.request.user
 
@@ -551,7 +551,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
         project_id = request.user.project_id
-        tasks = list(Task.objects.filter(project_id=project_id).select_related('assignee'))
+        tasks = list(Task.objects.filter(project_id=project_id).select_related('assignee').prefetch_related('participants'))
         total = len(tasks)
         by_status = {s.value: sum(1 for t in tasks if t.status == s.value) for s in Status}
         by_role = {r.name: sum(1 for t in tasks if t.role == r.name) for r in Role.objects.filter(project_id=project_id)}
@@ -565,8 +565,8 @@ class TaskViewSet(viewsets.ModelViewSet):
                 'name': p.name,
                 'roles': [r.name for r in p.roles.all()],
                 'photo': request.build_absolute_uri(p.photo.url) if p.photo else None,
-                'open': sum(1 for t in tasks if t.assignee_id == p.id and t.status != Status.CONCLUIDA),
-                'done': sum(1 for t in tasks if t.assignee_id == p.id and t.status == Status.CONCLUIDA),
+                'open': sum(1 for t in tasks if t.has_member(p.id) and t.status != Status.CONCLUIDA),
+                'done': sum(1 for t in tasks if t.has_member(p.id) and t.status == Status.CONCLUIDA),
             }
             for p in people
         ]
@@ -602,7 +602,7 @@ class TaskViewSet(viewsets.ModelViewSet):
                     {'detail': 'Para concluir uma tarefa, adicione a nota de conclusão nela individualmente.'},
                     status=400,
                 )
-            qs = qs.filter(assignee_id=request.user.id)
+            qs = qs.filter(Q(assignee_id=request.user.id) | Q(participants=request.user.id)).distinct()
             if qs.count() != len(set(ids)):
                 return Response(
                     {'detail': 'Algumas tarefas selecionadas não são suas.'},

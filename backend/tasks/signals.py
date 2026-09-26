@@ -10,6 +10,10 @@ def actor_name(actor):
     return actor.name if actor else 'Sistema'
 
 
+def people_label(task):
+    return ', '.join(p.name for p in task.people()) or 'ninguém'
+
+
 def display(value):
     return 'Não informado' if value is None or value == '' else str(value)
 
@@ -35,11 +39,11 @@ def stash_previous_task(sender, instance, **kwargs):
 def notify_unblocked(done_task):
     """DM the assignee of every task that was waiting on `done_task`."""
     for waiting in done_task.dependents.exclude(status=Status.CONCLUIDA).select_related('assignee'):
-        if waiting.assignee_id:
+        for person in waiting.people():
             discord.send_task_reminder_dm(
                 waiting, 'Tarefa liberada',
-                f'{waiting.assignee.name}, {done_task.code} foi concluída e libera esta tarefa. Pode começar!',
-                'unblocked', footer_note='Aviso automático',
+                f'{person.name}, {done_task.code} foi concluída e libera esta tarefa. Pode começar!',
+                'unblocked', footer_note='Aviso automático', person=person,
             )
 
 
@@ -47,9 +51,12 @@ def notify_unblocked(done_task):
 def log_task_activity(sender, instance, created, **kwargs):
     actor = getattr(instance, '_activity_actor', None)
     who = actor_name(actor)
-    assignee = instance.assignee.name if instance.assignee_id else 'ninguém'
 
     if created:
+        pending = getattr(instance, '_pending_participants', None)
+        if pending:
+            instance.participants.set(pending)  # before announcing, so the message and @mentions include everyone
+        assignee = people_label(instance)
         Activity.objects.create(
             task=instance, actor=actor,
             event_type=Activity.EventType.TASK_CREATED,
@@ -63,6 +70,7 @@ def log_task_activity(sender, instance, created, **kwargs):
     previous = getattr(instance, '_previous', None)
     if not previous:
         return
+    assignee = people_label(instance)
 
     if previous.status != instance.status:
         completed = instance.status == Status.CONCLUIDA

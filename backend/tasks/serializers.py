@@ -232,6 +232,8 @@ class TaskSerializer(serializers.ModelSerializer):
     depends_on_title = serializers.CharField(source='depends_on.title', read_only=True, default=None)
     blocked = serializers.SerializerMethodField()
     blocking = serializers.SerializerMethodField()
+    participants = serializers.PrimaryKeyRelatedField(many=True, queryset=Person.objects.all(), required=False)
+    participants_info = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -241,6 +243,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'checked', 'completion_note', 'created_at', 'subtasks', 'subtasks_done',
             'subtasks_total', 'attachments_total', 'references_total',
             'depends_on', 'depends_on_code', 'depends_on_title', 'blocked', 'blocking',
+            'kind', 'participants', 'participants_info',
         ]
         read_only_fields = ['project', 'code', 'created_at']
 
@@ -252,6 +255,7 @@ class TaskSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         instance = self.instance
+        self._validate_group(attrs, instance)
         dep = attrs['depends_on'] if 'depends_on' in attrs else (instance.depends_on if instance else None)
         if dep is not None:
             project_id = instance.project_id if instance else getattr(self._actor(), 'project_id', None)
@@ -272,6 +276,32 @@ class TaskSerializer(serializers.ModelSerializer):
                 })
         return attrs
 
+    def _validate_group(self, attrs, instance):
+        kind = attrs.get('kind', instance.kind if instance else 'solo')
+        if kind == 'solo':
+            attrs['participants'] = []
+            return
+        people = attrs.get('participants', list(instance.participants.all()) if instance else [])
+        if len(people) < 2:
+            raise serializers.ValidationError({'participants': 'Uma tarefa em grupo precisa de pelo menos 2 pessoas.'})
+        project_id = instance.project_id if instance else getattr(self._actor(), 'project_id', None)
+        if project_id and any(p.project_id != project_id for p in people):
+            raise serializers.ValidationError({'participants': 'Há pessoas de outro projeto.'})
+        attrs['participants'] = people
+        # The lead stays the current assignee if they're still in the group.
+        current = attrs.get('assignee', instance.assignee if instance else None)
+        attrs['assignee'] = current if current in people else people[0]
+
+    def get_participants_info(self, obj):
+        request = self.context.get('request')
+        return [
+            {
+                'id': p.id, 'name': p.name,
+                'photo': (request.build_absolute_uri(p.photo.url) if request else p.photo.url) if p.photo else None,
+            }
+            for p in obj.participants.all()
+        ]
+
     def get_blocked(self, obj):
         return obj.is_blocked
 
@@ -285,16 +315,31 @@ class TaskSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+        participants = validated_data.pop('participants', [])
         instance = Task(**validated_data)
         instance._activity_actor = self._actor()
+        instance._pending_participants = participants  # applied by the post_save signal, before it announces the task
         instance.save()
+        if participants:
+            instance.participants.set(participants)
         return instance
 
     def update(self, instance, validated_data):
+        participants = validated_data.pop('participants', None)
         instance._activity_actor = self._actor()
+        before = {p.id for p in instance.participants.all()}
         for k, v in validated_data.items():
             setattr(instance, k, v)
         instance.save()
+        if participants is not None:
+            instance.participants.set(participants)
+            if {p.id for p in participants} != before:
+                Activity.objects.create(
+                    task=instance, actor=self._actor(), event_type=Activity.EventType.TASK_ASSIGNED,
+                    visibility=Activity.Visibility.PUBLIC,
+                    message=f'{instance.code} agora é de: {", ".join(p.name for p in participants) or "ninguém"}.',
+                    details={'participantes': [p.name for p in participants]},
+                )
         return instance
 
     def get_assignee_photo(self, obj):

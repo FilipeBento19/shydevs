@@ -26,7 +26,7 @@ function isSelected(id) {
   return props.selectedIds.includes(id)
 }
 function canSelect(task) {
-  return props.canEdit || task.assignee === auth.state.person?.id
+  return props.canEdit || task.assignee === auth.state.person?.id || !!task.participants?.includes(auth.state.person?.id)
 }
 function openTask(task) {
   if (!auth.isLoggedIn) return
@@ -78,8 +78,11 @@ function openTask(task) {
               </span>
             </div>
             <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-              <AssigneeAvatar :photo="t.assignee_photo" :color="roleColor(t.role)" :size="24" />
-              <span style="font-size:12px; font-weight:600; color:#d6d4e6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.assignee_name || 'Sem responsável' }}</span>
+              <span v-if="t.kind === 'group'" class="tt-stack" aria-hidden="true">
+                <AssigneeAvatar v-for="p in t.participants_info.slice(0, 3)" :key="p.id" :photo="p.photo" :color="roleColor(t.role)" :size="24" />
+              </span>
+              <AssigneeAvatar v-else :photo="t.assignee_photo" :color="roleColor(t.role)" :size="24" />
+              <span style="font-size:12px; font-weight:600; color:#d6d4e6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.kind === 'group' ? t.participants_info.map((p) => p.name).join(', ') : (t.assignee_name || 'Sem responsável') }}</span>
             </div>
             <div :style="{ fontSize: '11.5px', fontWeight: '600', color: isLate(t) ? '#ff8f98' : '#9a97b8', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }">
               <i class="fi fi-sr-calendar" style="font-size:10.5px; opacity:.75; flex:none;" aria-hidden="true"></i>{{ formatDue(t) }}

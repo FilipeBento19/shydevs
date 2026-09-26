@@ -85,7 +85,10 @@ function onDropCol(status) {
             <span :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px', borderRadius: '6px', padding: '3px 7px', fontSize: '10px', fontWeight: '700', background: `color-mix(in oklab, ${roleColor(t.role)} 20%, #14141d)`, color: `color-mix(in oklab, ${roleColor(t.role)} 75%, #fff)` }">
               <i :class="`fi ${roleIcon(t.role)}`" aria-hidden="true"></i>{{ t.role }}
             </span>
-            <AssigneeAvatar :photo="t.assignee_photo" :color="roleColor(t.role)" :size="20" :title="t.assignee_name" />
+            <span v-if="t.kind === 'group'" class="kb-stack" :title="t.participants_info.map((p) => p.name).join(', ')">
+              <AssigneeAvatar v-for="p in t.participants_info.slice(0, 3)" :key="p.id" :photo="p.photo" :color="roleColor(t.role)" :size="20" />
+            </span>
+            <AssigneeAvatar v-else :photo="t.assignee_photo" :color="roleColor(t.role)" :size="20" :title="t.assignee_name" />
           </div>
           <div :style="{ marginTop: '6px', fontSize: '10.5px', fontWeight: '600', color: isLate(t) ? '#ff8f98' : '#8b899f' }">
             <i class="fi fi-sr-calendar" style="opacity:.7; margin-right:4px;" aria-hidden="true"></i>{{ formatDue(t) }}

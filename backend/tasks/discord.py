@@ -265,18 +265,19 @@ def _log_outgoing(person, discord_id, source, content):
         pass
 
 
-def send_task_reminder_dm(task, heading, message, source, footer_note='Lembrete automático'):
-    if not (task.assignee_id and (task.assignee.discord_id or '').strip()):
+def send_task_reminder_dm(task, heading, message, source, footer_note='Lembrete automático', person=None):
+    person = person or task.assignee
+    if not (person and (person.discord_id or '').strip()):
         return
     if not os.environ.get('DISCORD_BOT_TOKEN'):
         return
-    discord_id = task.assignee.discord_id.strip()
+    discord_id = person.discord_id.strip()
     payload = {
         'flags': IS_COMPONENTS_V2,
         'components': [build_task_reminder_container(heading, task, message, footer_note)],
     }
     _spawn(_send_dm, (discord_id, payload, None))
-    _log_outgoing(task.assignee, discord_id, source, f'{heading}\n{message}')
+    _log_outgoing(person, discord_id, source, f'{heading}\n{message}')
 
 
 def send_digest_dm(person, stats):
@@ -498,9 +499,9 @@ def notify(activity):
         return
 
     task = activity.task
-    discord_id = None
-    if activity.event_type in MENTION_EVENT_TYPES and task and task.assignee_id:
-        discord_id = (task.assignee.discord_id or '').strip() or None
+    discord_ids = []
+    if activity.event_type in MENTION_EVENT_TYPES and task:
+        discord_ids = [d for d in ((p.discord_id or '').strip() for p in task.people()) if d]
 
     banner_path = _banner_path(activity.event_type)
     banner_filename = banner_path.name if banner_path else None
@@ -510,8 +511,8 @@ def notify(activity):
         # Components V2 messages can't use the top-level `content` field, so
         # a mention that should actually ping goes in its own text block
         # instead — Discord still parses/notifies mentions found there.
-        mention_line = f'<@{discord_id}>' if discord_id else None
-        allowed_mentions = {'parse': [], 'users': [discord_id]} if discord_id else {'parse': []}
+        mention_line = ' '.join(f'<@{d}>' for d in discord_ids) or None
+        allowed_mentions = {'parse': [], 'users': discord_ids} if discord_ids else {'parse': []}
         payload = {
             'username': 'ShyDevs',
             'flags': IS_COMPONENTS_V2,

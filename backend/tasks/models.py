@@ -125,6 +125,11 @@ class Task(models.Model):
     status_changed_at = models.DateTimeField(default=timezone.now)
     pending_reminder_sent = models.BooleanField(default=False)
     in_progress_reminder_sent = models.BooleanField(default=False)
+    # Solo tasks have one `assignee`. Group tasks are shared by several
+    # `participants`; `assignee` then holds the first of them (the "lead"),
+    # which keeps everything keyed on the assignee working.
+    kind = models.CharField(max_length=10, choices=[('solo', 'Solo'), ('group', 'Em grupo')], default='solo')
+    participants = models.ManyToManyField(Person, blank=True, related_name='group_tasks')
     # This task can't be started until `depends_on` is done ("Concluída").
     depends_on = models.ForeignKey(
         'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='dependents'
@@ -133,6 +138,17 @@ class Task(models.Model):
     class Meta:
         ordering = ['-created_at']
         unique_together = [('project', 'code')]
+
+    def people(self):
+        """Everyone working on this task: the assignee plus any group participants."""
+        found = [self.assignee] if self.assignee_id else []
+        found += [p for p in self.participants.all() if p.id != self.assignee_id]
+        return found
+
+    def has_member(self, person_id):
+        return bool(person_id) and (
+            self.assignee_id == person_id or any(p.id == person_id for p in self.participants.all())
+        )
 
     @property
     def is_blocked(self):

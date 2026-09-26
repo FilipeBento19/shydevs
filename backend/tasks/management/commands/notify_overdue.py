@@ -17,14 +17,14 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         today = timezone.now().date()
         overdue = (
-            Task.objects.select_related('assignee')
+            Task.objects.select_related('assignee').prefetch_related('participants')
             .filter(due_date__lt=today, overdue_notified=False)
             .exclude(status=Status.CONCLUIDA)
         )
 
         count = 0
         for task in overdue:
-            assignee = task.assignee.name if task.assignee_id else 'ninguém'
+            assignee = ', '.join(p.name for p in task.people()) or 'ninguém'
             Activity.objects.create(
                 task=task, actor=None,
                 event_type=Activity.EventType.OVERDUE,

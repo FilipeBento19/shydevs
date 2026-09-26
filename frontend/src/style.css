@@ -195,3 +195,7 @@ textarea:focus-visible,
 
 .task-tabs { margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
 .task-tabs::-webkit-scrollbar { display: none; }
+
+/* stacked avatars for group tasks (board rows and kanban cards) */
+.tt-stack, .kb-stack { display: inline-flex; flex: none; }
+.tt-stack > * + *, .kb-stack > * + * { margin-left: -8px; box-shadow: -2px 0 0 #14141d; }

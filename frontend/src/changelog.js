@@ -2,6 +2,14 @@
 // first entry's version: add a new entry (and bump the version) with every push.
 export const releases = [
   {
+    version: '24.9',
+    items: [
+      'Novo tipo de tarefa: em grupo. Ao atribuir uma tarefa, escolha no topo entre solo ou em grupo, e no grupo selecione várias pessoas ou cargos inteiros.',
+      'Todo mundo do grupo pode mudar o status e marcar o checklist, e a tarefa conta na carga de trabalho de cada um.',
+      'O Discord marca e manda os lembretes por DM para cada pessoa do grupo.',
+    ],
+  },
+  {
     version: '24.8',
     items: [
       'Tarefas podem depender de outra: fica bloqueada (cadeado "Aguardando SD-xxx") até a outra ser concluída, e a página das duas avisa isso.',

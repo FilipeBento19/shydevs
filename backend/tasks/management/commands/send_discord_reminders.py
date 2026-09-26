@@ -59,64 +59,73 @@ class Command(BaseCommand):
                 project.save(update_fields=['last_unverified_discord_reminder_at'])
                 counts['unverified'] += len(ids)
 
+        def busy(person):
+            return Task.objects.filter(Q(assignee=person) | Q(participants=person), status=Status.EM_ANDAMENTO).exists()
+
         pending = (
-            Task.objects.select_related('assignee')
+            Task.objects.select_related('assignee').prefetch_related('participants')
             .filter(status=Status.PENDENTE, pending_reminder_sent=False, status_changed_at__lte=now - PENDING_AFTER)
-            .exclude(assignee__isnull=True).exclude(assignee__discord_id='')
-            # Nagging about a task that hasn't started makes no sense while the
-            # person is already busy with another one, or while it's blocked.
-            .exclude(assignee__tasks__status=Status.EM_ANDAMENTO)
+            # Nagging about a task that hasn't started makes no sense while it's blocked...
             .exclude(depends_on__isnull=False, depends_on__status__in=[Status.PENDENTE, Status.EM_ANDAMENTO])
         )
         for task in pending:
-            d.send_task_reminder_dm(
-                task, 'Ainda não começou?',
-                f'{task.assignee.name}, essa tarefa está esperando você desde {task.status_changed_at.strftime("%d/%m")}. '
-                'Bora dar o primeiro passo?',
-                'pending_reminder',
-            )
-            task.pending_reminder_sent = True
-            task.save(update_fields=['pending_reminder_sent'])
-            counts['pending'] += 1
+            # ...or for someone who is already busy with another task.
+            targets = [p for p in task.people() if p.discord_id.strip() and not busy(p)]
+            for person in targets:
+                d.send_task_reminder_dm(
+                    task, 'Ainda não começou?',
+                    f'{person.name}, essa tarefa está esperando você desde {task.status_changed_at.strftime("%d/%m")}. '
+                    'Bora dar o primeiro passo?',
+                    'pending_reminder', person=person,
+                )
+            if targets:
+                task.pending_reminder_sent = True
+                task.save(update_fields=['pending_reminder_sent'])
+                counts['pending'] += 1
 
         in_progress = (
-            Task.objects.select_related('assignee')
+            Task.objects.select_related('assignee').prefetch_related('participants')
             .filter(status=Status.EM_ANDAMENTO, in_progress_reminder_sent=False, status_changed_at__lte=now - IN_PROGRESS_AFTER)
-            .exclude(assignee__isnull=True).exclude(assignee__discord_id='')
         )
         for task in in_progress:
-            d.send_task_reminder_dm(
-                task, 'Como está o andamento?',
-                f'{task.assignee.name}, já faz uns dias que essa tarefa está em andamento. '
-                'Continue firme, ou avise se travou em algo.',
-                'in_progress_reminder',
-            )
-            task.in_progress_reminder_sent = True
-            task.save(update_fields=['in_progress_reminder_sent'])
-            counts['in_progress'] += 1
+            targets = [p for p in task.people() if p.discord_id.strip()]
+            for person in targets:
+                d.send_task_reminder_dm(
+                    task, 'Como está o andamento?',
+                    f'{person.name}, já faz uns dias que essa tarefa está em andamento. '
+                    'Continue firme, ou avise se travou em algo.',
+                    'in_progress_reminder', person=person,
+                )
+            if targets:
+                task.in_progress_reminder_sent = True
+                task.save(update_fields=['in_progress_reminder_sent'])
+                counts['in_progress'] += 1
 
         due_soon = (
-            Task.objects.select_related('assignee')
+            Task.objects.select_related('assignee').prefetch_related('participants')
             .filter(due_date=today + timedelta(days=1), due_soon_notified=False)
-            .exclude(status=Status.CONCLUIDA).exclude(assignee__isnull=True).exclude(assignee__discord_id='')
+            .exclude(status=Status.CONCLUIDA)
         )
         for task in due_soon:
-            d.send_task_reminder_dm(
-                task, 'Prazo chegando',
-                f'{task.assignee.name}, o prazo é amanhã ({task.due_date.strftime("%d/%m")}). '
-                'Ainda dá tempo, mas não deixe para a última hora.',
-                'due_soon_reminder',
-            )
-            task.due_soon_notified = True
-            task.save(update_fields=['due_soon_notified'])
-            counts['due_soon'] += 1
+            targets = [p for p in task.people() if p.discord_id.strip()]
+            for person in targets:
+                d.send_task_reminder_dm(
+                    task, 'Prazo chegando',
+                    f'{person.name}, o prazo é amanhã ({task.due_date.strftime("%d/%m")}). '
+                    'Ainda dá tempo, mas não deixe para a última hora.',
+                    'due_soon_reminder', person=person,
+                )
+            if targets:
+                task.due_soon_notified = True
+                task.save(update_fields=['due_soon_notified'])
+                counts['due_soon'] += 1
 
         if now.astimezone(BRASILIA).hour == DIGEST_HOUR_BRASILIA:
             people = Person.objects.exclude(discord_id='').filter(
                 Q(last_digest_sent_at__isnull=True) | Q(last_digest_sent_at__lte=now - DIGEST_INTERVAL)
             )
             for person in people:
-                tasks = Task.objects.filter(assignee=person)
+                tasks = Task.objects.filter(Q(assignee=person) | Q(participants=person)).distinct()
                 stats = {
                     'open': tasks.exclude(status=Status.CONCLUIDA).count(),
                     'in_progress': tasks.filter(status=Status.EM_ANDAMENTO).count(),

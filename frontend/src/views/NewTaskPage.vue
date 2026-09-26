@@ -9,6 +9,7 @@ import RoleSelectButtons from '../components/RoleSelectButtons.vue'
 import PrioritySelectButtons from '../components/PrioritySelectButtons.vue'
 import DueDateField from '../components/DueDateField.vue'
 import AssigneeSelect from '../components/AssigneeSelect.vue'
+import GroupPicker from '../components/GroupPicker.vue'
 import BackButton from '../components/BackButton.vue'
 import CustomSelect from '../components/CustomSelect.vue'
 
@@ -38,7 +39,7 @@ async function loadRefs() {
 onMounted(loadRefs)
 
 const form = reactive({
-  title: '', description: '', role: 'Modelador', assignee: null, due_date: '', priority: 'Alta', depends_on: null,
+  title: '', description: '', role: 'Modelador', assignee: null, due_date: '', priority: 'Alta', depends_on: null, kind: 'solo', participants: [],
 })
 const dependencyOptions = computed(() => [
   { value: null, label: 'Nenhuma' },
@@ -51,8 +52,20 @@ const checklist = ref([''])
 const formPeople = computed(() => people.value.filter((p) => (p.roles || []).includes(form.role)))
 const assigneeOptions = computed(() => formPeople.value.map((p) => ({
   value: p.id,
-  label: `${p.name} — ${(p.roles || []).join(', ')} (${tasks.value.filter((t) => t.assignee === p.id && t.status !== 'Concluída').length} abertas)`,
+  label: `${p.name} — ${(p.roles || []).join(', ')} (${tasks.value.filter((t) => (t.assignee === p.id || t.participants?.includes(p.id)) && t.status !== 'Concluída').length} abertas)`,
 })))
+
+const KINDS = [
+  { value: 'solo', label: 'Tarefa solo', hint: 'Uma pessoa responsável', icon: 'fi-sr-user' },
+  { value: 'group', label: 'Tarefa em grupo', hint: 'Várias pessoas ou cargos', icon: 'fi-sr-users' },
+]
+
+// A group task still has one "cargo" (its category/color): the first one the picked people have.
+function groupRole() {
+  const chosen = people.value.filter((p) => form.participants.includes(p.id))
+  const names = roles.value.map((r) => r.name)
+  return chosen.flatMap((p) => p.roles || []).find((r) => names.includes(r)) || form.role
+}
 
 function onRoleChange(name) {
   form.role = name
@@ -82,7 +95,12 @@ async function submit() {
     formError.value = 'Informe o título da tarefa.'
     return
   }
-  if (!form.assignee) {
+  const group = form.kind === 'group'
+  if (group && form.participants.length < 2) {
+    formError.value = 'Escolha pelo menos 2 pessoas para uma tarefa em grupo.'
+    return
+  }
+  if (!group && !form.assignee) {
     formError.value = 'Selecione a pessoa responsável.'
     return
   }
@@ -91,8 +109,10 @@ async function submit() {
     const created = await api.createTask({
       title: form.title,
       description: form.description,
-      role: form.role,
-      assignee: form.assignee,
+      role: group ? groupRole() : form.role,
+      kind: form.kind,
+      assignee: group ? form.participants[0] : form.assignee,
+      participants: group ? form.participants : [],
       due_date: form.due_date || null,
       priority: form.priority,
       depends_on: form.depends_on,
@@ -123,9 +143,18 @@ async function submit() {
         <img :src="mascot" alt="" style="width:18px; height:18px; object-fit:contain;" />SHYDEVS
       </div>
       <div style="font-size:22px; font-weight:800; color:#f5f4fb; letter-spacing:-.02em; margin-bottom:4px; text-align:center;">Atribuir Nova Tarefa</div>
-      <div style="font-size:12.5px; color:#9a97b8; margin-bottom:20px; text-align:center;">Escolha o cargo e delegue a demanda a um especialista</div>
+      <div style="font-size:12.5px; color:#9a97b8; margin-bottom:20px; text-align:center;">
+        {{ form.kind === 'group' ? 'Escolha as pessoas (ou cargos inteiros) que vão fazer essa demanda juntas' : 'Escolha o cargo e delegue a demanda a um especialista' }}
+      </div>
 
       <div style="background:#14141d; border:1px solid #22222f; border-radius:12px; padding:18px;">
+        <div role="radiogroup" aria-label="Tipo de tarefa" class="kind-toggle">
+          <button v-for="k in KINDS" :key="k.value" type="button" role="radio" :aria-checked="form.kind === k.value"
+            :class="{ active: form.kind === k.value }" @click="form.kind = k.value">
+            <i :class="`fi ${k.icon}`" aria-hidden="true"></i>
+            <span><strong>{{ k.label }}</strong><small>{{ k.hint }}</small></span>
+          </button>
+        </div>
         <div style="display:flex; flex-direction:column; gap:14px;">
           <div>
             <label for="new-task-title" style="display:block; font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Título da tarefa <span style="color:#ff8f98;">*</span></label>
@@ -162,12 +191,16 @@ async function submit() {
               <i class="fi fi-sr-plus-small" aria-hidden="true"></i>Adicionar etapa
             </button>
           </div>
-          <div>
+          <div v-if="form.kind === 'group'">
+            <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:8px;">Quem vai fazer <span style="color:#ff8f98;">*</span></div>
+            <GroupPicker v-model="form.participants" :people="people" :roles="roles" />
+          </div>
+          <div v-else>
             <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Cargo <span style="color:#ff8f98;">*</span></div>
             <RoleSelectButtons :roles="roles" :model-value="form.role" @update:model-value="onRoleChange" />
           </div>
 
-          <AssigneeSelect v-model="form.assignee" :options="assigneeOptions" />
+          <AssigneeSelect v-if="form.kind === 'solo'" v-model="form.assignee" :options="assigneeOptions" />
 
           <div>
             <div style="font-size:12px; font-weight:700; color:#c7c5dc; margin-bottom:6px;">Data de entrega (Prazo)</div>
@@ -201,3 +234,18 @@ async function submit() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.kind-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.kind-toggle button { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid #26263a; background: #0e0e14; color: #9a97b8; text-align: left; cursor: pointer; transition: border-color .12s ease, background-color .12s ease; }
+.kind-toggle button i { font-size: 15px; }
+.kind-toggle button span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.kind-toggle strong { font-size: 12.5px; color: #c7c5dc; }
+.kind-toggle small { font-size: 10.5px; color: #706e82; }
+.kind-toggle button:hover { border-color: #3a3a55; }
+.kind-toggle button:focus-visible { outline: 2px solid #7c6fff; outline-offset: 1px; }
+.kind-toggle button.active { border-color: #7c6fff; background: rgba(124, 111, 255, .14); }
+.kind-toggle button.active strong { color: #f5f4fb; }
+.kind-toggle button.active i { color: #b3aaff; }
+@media (max-width: 480px) { .kind-toggle { grid-template-columns: 1fr; } }
+</style>
